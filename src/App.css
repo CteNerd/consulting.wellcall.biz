@@ -14,7 +14,7 @@
 }
 
 .App-header {
-  background-color: rgb(40, 44, 52, .4);
+  background-color: rgb(40, 44, 52, 0.4);
   min-height: 10vh;
   max-height: 10vh;
   display: flex;
@@ -54,7 +54,7 @@
 }
 
 .App-footer {
-  background-color: rgb(40, 44, 52, .4);
+  background-color: rgb(40, 44, 52, 0.4);
   min-height: 10vh;
   /* display: flex; */
   flex-direction: column;
