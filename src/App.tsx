@@ -8,7 +8,14 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <img src={logo} className="logo col-50" />
+        {/* <img src={logo} className="logo col-50" /> */}
+        <div className="col-33">
+          <a href={"mailto:admin@wellcall.biz"}>Email</a>
+        </div>
+        <div className="col-33"><img src={logo} className="logo col-50" /></div>
+        <div className="col-33">
+          <a href={"tel:559-574-1056"}>Call/Text</a>
+        </div>
       </header>
 
       <div className="App-main">
@@ -25,7 +32,7 @@ function App() {
         <div className="col-33">
           <a href={"mailto:admin@wellcall.biz"}>Email</a>
         </div>
-        <div className="col-33">Your Problem. Our Solution.</div>
+        <div className="col-33"><p>Your Problem. Our Solution.</p></div>
         <div className="col-33">
           <a href={"tel:559-574-1056"}>Call/Text</a>
         </div>

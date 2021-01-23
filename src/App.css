@@ -17,7 +17,7 @@
   background-color: rgb(40, 44, 52, 0.4);
   min-height: 10vh;
   max-height: 10vh;
-  display: flex;
+  /* display: flex; */
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -32,9 +32,10 @@
   display: inline-flex;
 }
 
-.App-header p {
-  vertical-align: middle;
-  margin: 0px;
+.App-header a {
+  vertical-align: text-bottom;
+  display: inline-flex;
+  line-height: 10vh;
 }
 
 .App-header .nav {
@@ -63,6 +64,12 @@
   font-size: calc(10px + 2vmin);
   border-radius: 10px;
   color: white;
+}
+
+.App-footer a p{
+  vertical-align: text-bottom;
+  display: inline-flex;
+  line-height: 10vh;
 }
 
 .App-link {
