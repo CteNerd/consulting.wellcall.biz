@@ -14,13 +14,54 @@
 }
 
 .App-header {
-  background-color: #282c34;
-  min-height: 100vh;
+  background-color: rgb(40, 44, 52, .4);
+  min-height: 10vh;
+  max-height: 10vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   font-size: calc(10px + 2vmin);
+  color: white;
+  border-radius: 10px;
+}
+
+.App-header .logo {
+  max-width: 20vw;
+  height: 10vh;
+  display: inline-flex;
+}
+
+.App-header p {
+  vertical-align: middle;
+  margin: 0px;
+}
+
+.App-header .nav {
+  display: inline-flex;
+}
+
+.App-main {
+  background-color: white;
+  min-height: 80vh;
+  /* display: flex; */
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: rgb(40, 44, 52);
+  margin: 0 8vw;
+}
+
+.App-footer {
+  background-color: rgb(40, 44, 52, .4);
+  min-height: 10vh;
+  /* display: flex; */
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  border-radius: 10px;
   color: white;
 }
 
@@ -35,4 +76,19 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+* {
+  box-sizing: border-box;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+.col-33 {
+  width: 33%;
+  display: inline-block;
+}
+
+.col-50 {
+  width: 50%;
+  display: inline-block;
 }
