@@ -1,5 +1,5 @@
 import React from "react";
-import code from "../../images/vscode.jpeg"
+import code from "../../images/vscode.jpg"
 import ceiling from "../../images/glassCeiling.jpg"
 import "./home.css"
 
