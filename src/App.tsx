@@ -2,13 +2,15 @@ import React from "react";
 import "./App.css";
 import { BrowserRouter as Router, Switch, Route, Link } from "react-router-dom";
 import Home from "./main/home/home";
+import SideNav from "./main/side-nav/sideNav"
 import logo from "./images/Tech Logo No Padding.png";
 
 function App() {
   return (
     <div className="App">
+      <SideNav />
       <header className="App-header">
-        <div className="col-33 menu-btn">
+        <div className="col-33 menu-btn" onClick={() => openNav()}>
           <div className="menu-line"></div>
           <div className="menu-line"></div>
           <div className="menu-line"></div>
@@ -39,6 +41,15 @@ function App() {
       </footer>
     </div>
   );
+}
+
+
+
+/* Set the width of the side navigation to 250px */
+function openNav() {
+  if (document.getElementById("mySidenav")) {
+    document.getElementById("mySidenav")!.style.width = "200px";
+  }
 }
 
 export default App;

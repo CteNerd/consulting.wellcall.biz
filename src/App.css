@@ -51,6 +51,9 @@
   min-height: 10vh;
 }
 
+.App-header .menu-line:hover {
+  cursor: pointer;
+}
 .App-header .menu-line {
   width: 35px;
   height: 5px;
@@ -115,4 +118,20 @@
 .col-50 {
   width: 50%;
   display: inline-block;
+}
+
+/* Style page content - use this if you want to push the page content to the right when you open the side navigation */
+#main {
+  transition: margin-left 0.5s;
+  text-align: -webkit-center;
+}
+
+/* On smaller screens, where height is less than 450px, change the style of the sidenav (less padding and a smaller font size) */
+@media screen and (max-height: 450px) {
+  .sidenav {
+    padding-top: 15px;
+  }
+  .sidenav a {
+    font-size: 18px;
+  }
 }
