@@ -8,13 +8,13 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        {/* <img src={logo} className="logo col-50" /> */}
-        <div className="col-33">
-          <a href={"mailto:admin@wellcall.biz"}>Email</a>
+        <div className="col-33 menu-btn">
+          <div className="menu-line"></div>
+          <div className="menu-line"></div>
+          <div className="menu-line"></div>
         </div>
         <div className="col-33"><img src={logo} className="logo col-50" /></div>
         <div className="col-33">
-          <a href={"tel:559-574-1056"}>Call/Text</a>
         </div>
       </header>
 

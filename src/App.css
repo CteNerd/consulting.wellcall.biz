@@ -28,6 +28,7 @@
 
 .App-header .logo {
   max-width: 20vw;
+  min-width: 120px;
   height: 10vh;
   display: inline-flex;
 }
@@ -36,10 +37,25 @@
   vertical-align: text-bottom;
   display: inline-flex;
   line-height: 10vh;
+  color: #202c53;
 }
 
 .App-header .nav {
   display: inline-flex;
+}
+
+.App-header .menu-btn {
+  vertical-align: middle;
+  float: left;
+  padding: 1vh;
+  min-height: 10vh;
+}
+
+.App-header .menu-line {
+  width: 35px;
+  height: 5px;
+  background-color: #202c53;
+  margin: 6px 0;
 }
 
 .App-main {
@@ -63,13 +79,14 @@
   justify-content: center;
   font-size: calc(10px + 2vmin);
   border-radius: 10px;
-  color: white;
+  color: #202c53;
 }
 
 .App-footer a p{
   vertical-align: text-bottom;
   display: inline-flex;
   line-height: 10vh;
+  color: #202c53;
 }
 
 .App-link {
