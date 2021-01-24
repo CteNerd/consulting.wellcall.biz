@@ -2,8 +2,25 @@
     max-width: -webkit-fill-available;
 }
 
+.home {
+    color: #1c2c5c;
+}
+
+.home strong {
+    color: #7bc344;
+}
+
 .home .info {
     vertical-align: top;
+}
+
+.home .info li {
+    font-size: 17px;
+    text-align: left;
+}
+
+.home .info .title-icon {
+    padding: 5px;
 }
 
 .home .cards {

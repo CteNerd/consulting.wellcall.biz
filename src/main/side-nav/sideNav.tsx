@@ -44,7 +44,7 @@ export default function SideNav() {
         <a href="https://ttyltutors.com">TTYL</a>
         <a href="https://www.pearlrae.com">Pearl Rae</a>
         <a href="https://jimmyjamkalewraps.com">Jimmy Jam Kale Wrap</a>
-        <a href="https://www.wewillcalltix.com">We'll Call Tix</a>
+        <a href="https://tix.wellcall.biz">We'll Call Tix</a>
       </div>
       <button
         onClick={() => setShowSocialDropdown(!showSocialDropdown)}
