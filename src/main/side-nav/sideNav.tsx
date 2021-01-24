@@ -3,22 +3,16 @@ import {
   CaretDownOutlined,
   HomeOutlined,
   GithubOutlined,
-  SmileOutlined,
-  // TrophyOutlined,
+  InfoCircleOutlined,
   UsergroupAddOutlined,
   InstagramOutlined,
   FacebookOutlined,
-  LinkedinOutlined,
-  TwitterOutlined,
-  FieldTimeOutlined,
 } from "@ant-design/icons";
 import "./sideNav.css";
 
 export default function SideNav() {
-  const [showHobbiesDropdown, setShowHobbiesDropdown] = useState(false);
   const [showProjectsDropdown, setShowProjectsDropdown] = useState(false);
   const [showSocialDropdown, setShowSocialDropdown] = useState(false);
-  const [showAboutDropdown, setShowAboutDropdown] = useState(false);
 
   function closeNav() {
     if (document.getElementById("mySidenav"))
@@ -34,7 +28,7 @@ export default function SideNav() {
         <HomeOutlined /> Home
       </a>
       <a href="/about">
-        <HomeOutlined /> About
+        <InfoCircleOutlined /> About
       </a>
       <button
         onClick={() => setShowProjectsDropdown(!showProjectsDropdown)}
@@ -63,10 +57,10 @@ export default function SideNav() {
         className="dropdown-container"
         style={{ display: showSocialDropdown ? "block" : "none" }}
       >
-        <a href="https://www.facebook.com/WellCallTechConsulting">
+        <a href="https://www.facebook.com/WellCallTechConsulting" target={"_blank"}>
           <FacebookOutlined /> Facebook
         </a>
-        <a href="https://www.instagram.com/d.o.n._tomlin/">
+        <a href="https://www.instagram.com/d.o.n._tomlin/" target={"_blank"}>
           <InstagramOutlined /> Instagram
         </a>
       </div>

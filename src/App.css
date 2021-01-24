@@ -37,7 +37,7 @@
   vertical-align: text-bottom;
   display: inline-flex;
   line-height: 10vh;
-  color: #202c53;
+  color: #1c2c5c;
 }
 
 .App-header .nav {
@@ -57,7 +57,7 @@
 .App-header .menu-line {
   width: 35px;
   height: 5px;
-  background-color: #202c53;
+  background-color: #1c2c5c;
   margin: 6px 0;
 }
 
@@ -82,14 +82,14 @@
   justify-content: center;
   font-size: calc(10px + 2vmin);
   border-radius: 10px;
-  color: #202c53;
+  color: #1c2c5c;
 }
 
 .App-footer a p{
   vertical-align: text-bottom;
   display: inline-flex;
   line-height: 10vh;
-  color: #202c53;
+  color: #1c2c5c;
 }
 
 .App-link {
@@ -134,4 +134,13 @@
   .sidenav a {
     font-size: 18px;
   }
+}
+
+button {
+  background-color: #1c2c5c;
+  color: #7bc344;
+  font-size: small;
+  border-radius: 10px;
+  padding: 10px;
+  margin: 10px;
 }

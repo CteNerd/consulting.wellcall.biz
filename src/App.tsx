@@ -4,6 +4,10 @@ import { BrowserRouter as Router, Switch, Route, Link } from "react-router-dom";
 import Home from "./main/home/home";
 import SideNav from "./main/side-nav/sideNav"
 import logo from "./images/Tech Logo No Padding.png";
+import {
+  MailOutlined,
+  PhoneOutlined
+} from "@ant-design/icons";
 
 function App() {
   return (
@@ -32,11 +36,11 @@ function App() {
 
       <footer className="App-footer">
         <div className="col-33">
-          <a href={"mailto:admin@wellcall.biz"}>Email</a>
+          <a href={"mailto:admin@wellcall.biz"}><MailOutlined/></a>
         </div>
         <div className="col-33"><p>Your Problem. Our Solution.</p></div>
         <div className="col-33">
-          <a href={"tel:559-574-1056"}>Call/Text</a>
+          <a href={"tel:559-574-1056"}><PhoneOutlined/></a>
         </div>
       </footer>
     </div>
