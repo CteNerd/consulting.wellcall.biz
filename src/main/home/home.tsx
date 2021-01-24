@@ -25,7 +25,7 @@ export default function Home() {
         <li>Hardware or Software Questions</li>
         <li>And More</li>
       </ul>
-      <button type="submit">Schedule An Appointment Now</button>
+      <button type="submit" onClick={() => window.open("https://facebook.com/WellCallTechConsulting", "_blank")}>Schedule An Appointment Now</button>
     </>
   );
 }
