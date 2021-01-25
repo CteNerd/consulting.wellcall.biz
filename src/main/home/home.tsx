@@ -26,6 +26,7 @@ export default function Home() {
             <li>Build your social media presence</li>
             <li>Highlight Films of your awesome season</li>
             <li>Hardware or Software Questions</li>
+            <li>Smart Home and Personal Home Security Assistance</li>
             <li>And More</li>
           </ul>
         </div>
