@@ -1,35 +1,37 @@
 .home img {
-    max-width: -webkit-fill-available;
+  max-width: -webkit-fill-available;
 }
 
 .home {
-    color: #1c2c5c;
+  color: #1c2c5c;
 }
 
 .home strong {
-    color: #7bc344;
+  color: #7bc344;
 }
 
 .home .info {
-    vertical-align: top;
+  vertical-align: top;
 }
 
 .home .info li {
-    font-size: 17px;
-    text-align: left;
+  font-size: 17px;
+  text-align: left;
 }
 
 .home .info .title-icon {
-    padding: 5px;
+  padding: 5px;
 }
 
 .home .cards {
-    max-width: 1200px;
-    margin: 0 auto;
-    display: grid;
-    grid-gap: 1rem;
-  }
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-gap: 1rem;
+}
 
-  @media (min-width: 600px) {
-    .cards { grid-template-columns: repeat(2, 1fr); }
+@media (min-width: 600px) {
+  .cards {
+    grid-template-columns: repeat(2, 1fr);
   }
+}

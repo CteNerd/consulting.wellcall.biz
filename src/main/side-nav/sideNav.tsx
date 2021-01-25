@@ -57,7 +57,10 @@ export default function SideNav() {
         className="dropdown-container"
         style={{ display: showSocialDropdown ? "block" : "none" }}
       >
-        <a href="https://www.facebook.com/WellCallTechConsulting" target={"_blank"}>
+        <a
+          href="https://www.facebook.com/WellCallTechConsulting"
+          target={"_blank"}
+        >
           <FacebookOutlined /> Facebook
         </a>
         <a href="https://www.instagram.com/d.o.n._tomlin/" target={"_blank"}>

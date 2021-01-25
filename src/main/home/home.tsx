@@ -1,16 +1,20 @@
 import React from "react";
-import code from "../../images/vscode.jpg"
-import ceiling from "../../images/glassCeiling.jpg"
-import "./home.css"
+import code from "../../images/vscode.jpg";
+import ceiling from "../../images/glassCeiling.jpg";
+import "./home.css";
 import { UsergroupAddOutlined, UserOutlined } from "@ant-design/icons";
 
 export default function Home() {
   return (
     <div className={"home"}>
-        <h2>Need Help With Technology?<br/><strong>We'll Call</strong> With Answers</h2>
+      <h2>
+        Need Help With Technology?
+        <br />
+        <strong>We'll Call</strong> With Answers
+      </h2>
       <div className={"cards"}>
         <div className={""}>
-          <img src={ceiling}/>
+          <img src={ceiling} />
         </div>
         <div className={"info"}>
           <h3>
@@ -25,27 +29,30 @@ export default function Home() {
             <li>And More</li>
           </ul>
         </div>
-      <div className={"info"}>
-        <h3>
-          <UsergroupAddOutlined className={"title-icon"} />
-          Small Business
-        </h3>
-        <ul>
-          <li>Establish your business digitally with a website and domain</li>
-          <li>
-            Emails and Addresses are delivered professionally
-          </li>
-          <li>
-            Control the ads your customers will see
-          </li>
-          <li>Search Engine Optimization</li>
-          <li>Hardware or Software Questions</li>
-          <li>And more to assist you raise your ceiling</li>
-        </ul>
+        <div className={"info"}>
+          <h3>
+            <UsergroupAddOutlined className={"title-icon"} />
+            Small Business
+          </h3>
+          <ul>
+            <li>Establish your business digitally with a website and domain</li>
+            <li>Emails and Addresses are delivered professionally</li>
+            <li>Control the ads your customers will see</li>
+            <li>Search Engine Optimization</li>
+            <li>Hardware or Software Questions</li>
+            <li>And more to assist you raise your ceiling</li>
+          </ul>
+        </div>
+        <img src={code} />
       </div>
-        <img src={code}/>
-      </div>
-      <button type="submit" onClick={() => window.open("https://facebook.com/WellCallTechConsulting", "_blank")}>Schedule An Appointment Now</button>
+      <button
+        type="submit"
+        onClick={() =>
+          window.open("https://facebook.com/WellCallTechConsulting", "_blank")
+        }
+      >
+        Schedule An Appointment Now
+      </button>
     </div>
   );
 }
