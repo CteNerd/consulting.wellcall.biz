@@ -46,14 +46,6 @@ export default function Home() {
         </div>
         <img src={code} />
       </div>
-      <button
-        type="submit"
-        onClick={() =>
-          window.open("https://facebook.com/WellCallTechConsulting", "_blank")
-        }
-      >
-        Schedule An Appointment Now
-      </button>
     </div>
   );
 }

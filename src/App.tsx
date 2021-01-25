@@ -51,7 +51,14 @@ function App() {
           </a>
         </div>
         <div className="col-33">
-          <p>Your Problem. Our Solution.</p>
+          <button
+            type="submit"
+            onClick={() =>
+              window.open("https://facebook.com/WellCallTechConsulting", "_blank")
+            }
+          >
+            Schedule An Appointment Now
+          </button>
         </div>
         <div className="col-33">
           <a href={"tel:559-574-1056"}>
