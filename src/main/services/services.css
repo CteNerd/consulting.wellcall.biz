@@ -23,8 +23,16 @@
 .services .col-50 {
   vertical-align: text-top;
   padding: 7px;
+  width: 100%;
 }
 
 .services strong {
   font-style: italic;
+}
+
+.services .cards {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-gap: 1rem;
 }
