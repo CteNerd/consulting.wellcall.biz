@@ -3,6 +3,8 @@ import "./App.css";
 import { BrowserRouter as Router, Switch, Route, Link } from "react-router-dom";
 import Home from "./main/home/home";
 import About from "./main/about/about";
+import Services from "./main/services/services";
+import Packages from "./main/packages/packages";
 import SideNav from "./main/side-nav/sideNav";
 import logo from "./images/Tech Logo No Padding.png";
 import { MailOutlined, PhoneOutlined } from "@ant-design/icons";
@@ -28,6 +30,12 @@ function App() {
           <Switch>
             <Route path="/about">
               <About />
+            </Route>
+            <Route path="/packages">
+              <Packages />
+            </Route>
+            <Route path="/services">
+              <Services />
             </Route>
             <Route path="/">
               <Home />

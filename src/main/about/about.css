@@ -1,8 +1,8 @@
-p {
+.about p {
   font-size: 17px;
   text-align: justify;
 }
 
-h3 {
-    text-align: justify;
+.about h3 {
+  text-align: justify;
 }

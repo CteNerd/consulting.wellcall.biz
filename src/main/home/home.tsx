@@ -27,7 +27,7 @@ export default function Home() {
             <li>Highlight Films of your awesome season</li>
             <li>Hardware or Software Questions</li>
             <li>Smart Home and Personal Home Security Assistance</li>
-            <li>And More</li>
+            <li>And more...</li>
           </ul>
         </div>
         <div className={"info"}>
@@ -41,7 +41,7 @@ export default function Home() {
             <li>Control the ads your customers will see</li>
             <li>Search Engine Optimization</li>
             <li>Hardware or Software Questions</li>
-            <li>And more to assist you raise your ceiling</li>
+            <li>And more...</li>
           </ul>
         </div>
         <img src={code} />

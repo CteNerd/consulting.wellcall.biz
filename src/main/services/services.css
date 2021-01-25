@@ -1,0 +1,17 @@
+.services h3 {
+    text-align: justify;
+}
+
+.services h3 .icon {
+    padding: 5px;
+}
+
+.services p {
+    text-align: justify;
+    font-size: 17px;
+}
+
+.services li {
+    font-size: 17px;
+    text-align: left;
+}

@@ -7,6 +7,8 @@ import {
   UsergroupAddOutlined,
   InstagramOutlined,
   FacebookOutlined,
+  AppstoreAddOutlined,
+  SolutionOutlined,
 } from "@ant-design/icons";
 import "./sideNav.css";
 
@@ -29,6 +31,12 @@ export default function SideNav() {
       </a>
       <a href="/about">
         <InfoCircleOutlined /> About
+      </a>
+      <a href="/services">
+        <AppstoreAddOutlined /> Services
+      </a>
+      <a href="/packages">
+        <SolutionOutlined /> Packages
       </a>
       <button
         onClick={() => setShowProjectsDropdown(!showProjectsDropdown)}
