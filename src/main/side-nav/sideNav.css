@@ -54,6 +54,10 @@
   margin: 0;
 }
 
+.sidenav .dropdown-container a {  
+  padding-left: 30px;
+}
+
 /* On mouse-over */
 .dropdown-btn:hover {
   color: #7bc344;
