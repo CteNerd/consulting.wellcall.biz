@@ -37,8 +37,8 @@ export default function About() {
         delivered to you or your business.
       </p>
       <p>
-        With backgrounds that have touched career paths at NFL, SAIC,
-        Greyhound Lines, and more, We'll Call brings comfort and professionalism in every
+        With backgrounds that have touched career paths at NFL, SAIC, Greyhound
+        Lines, and more, We'll Call brings comfort and professionalism in every
         detail. Maybe your questions is as simple as whats the best router for
         your business or you want to move your site from GoDaddy to AWS, we'll
         call with answers.
