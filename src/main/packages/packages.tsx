@@ -89,6 +89,12 @@ export default function Packages() {
                             Bug support
                         </li>
                         <li>
+                            Business Number via Google Voice
+                        </li>
+                        <li>
+                            Whats App For Business
+                        </li>
+                        <li>
                             And much more
                         </li>
                     </ul>
