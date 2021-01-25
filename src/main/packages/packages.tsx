@@ -12,6 +12,9 @@ export default function Packages() {
                     <h3>Tier I <sup>starting at $500</sup></h3>
                     <ul>
                         <li>
+                            Initial conversation to understand what you want and how you want it done
+                        </li>
+                        <li>
                             Website with 3 tabs (i.e. Home, About, and Menu)
                         </li>
                         <li>
@@ -33,6 +36,9 @@ export default function Packages() {
                         Tier II <sup>starting at $1000</sup>
                     </h3>
                     <ul>
+                        <li>
+                            Bi-weekly update on progress and to determine if there is anything new on the horizon
+                        </li>
                         <li>
                             2 emails setup under your domain name (i.e. admin@yourdomain.com)
                         </li>
@@ -56,10 +62,16 @@ export default function Packages() {
                     </h3>
                     <ul>
                         <li>
-                            More emails for your business using your domain (max 6)
+                            More emails for your business using your domain (max 6 but more available on per need basis)
                         </li>
                         <li>
-                            Chat to communicate with Customer support
+                            Chat to communicate with Customer Support
+                        </li>
+                        <li>
+                            Appointments and calendars
+                        </li>
+                        <li>
+                            Zoom Integration
                         </li>
                         <li>
                             Text customers from site
@@ -68,7 +80,13 @@ export default function Packages() {
                             Social Media Ads
                         </li>
                         <li>
+                            Third Party Login (i.e. Facebook, Twitter, Apple)
+                        </li>
+                        <li>
                             Manage the amount of Ads on your site
+                        </li>
+                        <li>
+                            Bug support
                         </li>
                         <li>
                             And much more
