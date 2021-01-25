@@ -14,6 +14,10 @@
   vertical-align: top;
 }
 
+.home .info h3 {
+    margin-top: 5px;
+}
+
 .home .info li {
   font-size: 17px;
   text-align: left;
