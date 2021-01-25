@@ -26,6 +26,7 @@ export default function Packages() {
             <li>Text message logo for branding</li>
             <li>Link to social media profiles</li>
             <li>Establish Facebook business page</li>
+            <li>First Beta usually shipped within a week</li>
           </ul>
         </div>
         <div className="col-50">
@@ -44,6 +45,7 @@ export default function Packages() {
             <li>Search Engine Optimization</li>
             <li>API and documentation</li>
             <li>Email server to send and track emails from your domain</li>
+            <li>First Beta usually shipped within 2 week</li>
           </ul>
         </div>
         <div className="col-50">

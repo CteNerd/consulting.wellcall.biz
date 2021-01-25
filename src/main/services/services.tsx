@@ -26,6 +26,8 @@ export default function Services() {
             <li>Database Management</li>
             <li>Employee Emails</li>
             <li>Subdomain Management</li>
+            <li>Api Documentation</li>
+            <li>Unit and Integration Testing</li>
             <li>
               Mobile App setup <strong>coming soon</strong>
             </li>
