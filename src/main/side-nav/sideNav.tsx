@@ -71,7 +71,7 @@ export default function SideNav() {
         >
           <FacebookOutlined /> Facebook
         </a>
-        <a href="https://www.instagram.com/d.o.n._tomlin/" target={"_blank"}>
+        <a href="https://www.instagram.com/WellCallTechConsulting/" target={"_blank"}>
           <InstagramOutlined /> Instagram
         </a>
       </div>
