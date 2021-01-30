@@ -58,6 +58,10 @@
   padding-left: 30px;
 }
 
+.sidenav .anticon {
+  color: #7bc344;
+}
+
 /* On mouse-over */
 .dropdown-btn:hover {
   color: #7bc344;
