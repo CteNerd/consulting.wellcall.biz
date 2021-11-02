@@ -4,7 +4,13 @@ import { BrowserRouter as Router, Switch, Route, Link } from "react-router-dom";
 import Home from "./main/home/home";
 import About from "./main/about/about";
 import Services from "./main/services/services";
-import Packages from "./main/packages/packages";
+import Consult from "./main/services/consult";
+import Implement from "./main/services/implement";
+import Adopt from "./main/services/adopt";
+import Maintenance from "./main/services/maintenance";
+import Enhancements from "./main/services/enhancements";
+import FAQs from "./main/faqs";
+import Payments from "./main/payment";
 import SideNav from "./main/side-nav/sideNav";
 import logo from "./images/Tech Logo No Padding.png";
 import { MailOutlined, PhoneOutlined } from "@ant-design/icons";
@@ -31,8 +37,26 @@ function App() {
             <Route path="/about">
               <About />
             </Route>
-            <Route path="/packages">
-              <Packages />
+            <Route path="/payment">
+              <Payments />
+            </Route>
+            <Route path="/faqs">
+              <FAQs />
+            </Route>
+            <Route path="/services/consult">
+              <Consult />
+            </Route>
+            <Route path="/services/implement">
+              <Implement />
+            </Route>
+            <Route path="/services/adopt">
+              <Adopt />
+            </Route>
+            <Route path="/services/maintenance">
+              <Maintenance />
+            </Route>
+            <Route path="/services/enhancements">
+              <Enhancements />
             </Route>
             <Route path="/services">
               <Services />
@@ -54,7 +78,10 @@ function App() {
           <button
             type="submit"
             onClick={() =>
-              window.open("https://facebook.com/WellCallTechConsulting", "_blank")
+              window.open(
+                "https://facebook.com/WellCallTechConsulting",
+                "_blank"
+              )
             }
           >
             Schedule An Appointment Now

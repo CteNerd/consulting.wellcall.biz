@@ -9,12 +9,14 @@ import {
   FacebookOutlined,
   AppstoreAddOutlined,
   SolutionOutlined,
+  QuestionOutlined,
 } from "@ant-design/icons";
 import "./sideNav.css";
 
 export default function SideNav() {
   const [showProjectsDropdown, setShowProjectsDropdown] = useState(false);
   const [showSocialDropdown, setShowSocialDropdown] = useState(false);
+  const [showServicesDropdown, setShowServicesDropdown] = useState(false);
 
   function closeNav() {
     if (document.getElementById("mySidenav"))
@@ -32,11 +34,25 @@ export default function SideNav() {
       <a href="/about">
         <InfoCircleOutlined /> About
       </a>
-      <a href="/services">
+      <button
+        onClick={() => setShowServicesDropdown(!showServicesDropdown)}
+        className="dropdown-btn"
+      >
         <AppstoreAddOutlined /> Services
-      </a>
-      <a href="/packages">
-        <SolutionOutlined /> Packages
+        <CaretDownOutlined className={"fa-caret-down"} />
+      </button>
+      <div
+        className="dropdown-container"
+        style={{ display: showServicesDropdown ? "block" : "none" }}
+      >
+        <a href="/services/consult">Consult</a>
+        <a href="/services/implement">Implement</a>
+        <a href="/services/adopt">Adopt</a>
+        <a href="/services/maintenance">Maintenance</a>
+        <a href="/services/enhancements">Enhancements</a>
+      </div>
+      <a href="/payment">
+        <SolutionOutlined /> Payment
       </a>
       <button
         onClick={() => setShowProjectsDropdown(!showProjectsDropdown)}
@@ -49,10 +65,18 @@ export default function SideNav() {
         className="dropdown-container"
         style={{ display: showProjectsDropdown ? "block" : "none" }}
       >
-        <a href="https://ttyltutors.com" target="_blank">TTYL</a>
-        <a href="https://pearlrae.com" target="_blank">Pearl Rae</a>
-        <a href="https://jimmyjamkalewraps.com" target="_blank">Jimmy Jam Kale Wrap</a>
-        <a href="https://tix.wellcall.biz" target="_blank">We'll Call Tix</a>
+        <a href="https://ttyltutors.com" target="_blank">
+          TTYL
+        </a>
+        <a href="https://pearlrae.com" target="_blank">
+          Pearl Rae
+        </a>
+        <a href="https://r3counseling.com" target="_blank">
+          R3 Counseling
+        </a>
+        <a href="https://tix.wellcall.biz" target="_blank">
+          We'll Call Tix
+        </a>
       </div>
       <button
         onClick={() => setShowSocialDropdown(!showSocialDropdown)}
@@ -71,10 +95,16 @@ export default function SideNav() {
         >
           <FacebookOutlined /> Facebook
         </a>
-        <a href="https://www.instagram.com/WellCallTechConsulting/" target={"_blank"}>
+        <a
+          href="https://www.instagram.com/WellCallTechConsulting/"
+          target={"_blank"}
+        >
           <InstagramOutlined /> Instagram
         </a>
       </div>
+      <a href="/faqs">
+        <QuestionOutlined /> FAQs
+      </a>
     </div>
   );
 }

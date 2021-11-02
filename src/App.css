@@ -1,10 +1,10 @@
 .App {
   text-align: center;
-  background-image: url('./images/marble.png');
+  background-image: url("./images/marble.png");
   background-repeat: no-repeat;
-  background-attachment: fixed; 
+  background-attachment: fixed;
   background-size: cover;
-} 
+}
 
 .App-logo {
   height: 40vmin;
@@ -66,7 +66,7 @@
 }
 
 .App-main {
-  background-color: rgb(255, 255, 255, .6);
+  background-color: rgb(255, 255, 255, 0.6);
   min-height: 80vh;
   /* display: flex; */
   flex-direction: column;
