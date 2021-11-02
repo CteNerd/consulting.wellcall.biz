@@ -1,6 +1,15 @@
+import { List } from "antd";
 import React from "react";
 
 export default function Implement() {
+  const data = [
+    "Building a website",
+    "Building an app",
+    "IoT Devices",
+    "3rd party hardware",
+    "3rd party software",
+  ];
+
   return (
     <div>
       <h1>Implement</h1>
@@ -43,6 +52,15 @@ export default function Implement() {
         discuss prioritization to fix such bugs. If a bug is found after hours,
         send an email and we will follow up with your incident request.
       </p>
+
+      <List
+        size={"small"}
+        header={<div>Services</div>}
+        bordered
+        dataSource={data}
+        renderItem={(item) => <List.Item>{item}</List.Item>}
+      />
+
       <div className="col-50">
         <a href="/implement">
           <button type="submit">Implement</button>

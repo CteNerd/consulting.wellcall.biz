@@ -1,6 +1,14 @@
+import { List, Typography } from "antd";
 import React from "react";
 
 export default function Enhancements() {
+  const data = [
+    "Enhancing existing hardware",
+    "Enhancing existing software",
+    "Manage upgrades of 3rd party hardware",
+    "Manage upgrades of 3rd party software",
+  ];
+
   return (
     <div>
       <h1>Enhancements</h1>
@@ -50,6 +58,14 @@ export default function Enhancements() {
         what actions need to be taken. Please remember, all 3rd Party Software
         is added at the expense of the client after such client has approved.
       </p>
+
+      <List
+        size={"small"}
+        header={<div>Services</div>}
+        bordered
+        dataSource={data}
+        renderItem={(item) => <List.Item>{item}</List.Item>}
+      />
       <div className="col-50">
         <a href="/enhancements">
           <button type="submit">Enhancements</button>

@@ -1,6 +1,18 @@
+import { List } from "antd";
 import React from "react";
 
 export default function Consult() {
+  const data = [
+    "Choosing a path to build your business digitally",
+    "Building a website",
+    "Building an app",
+    "Enhancing a website",
+    "Enahncing an app",
+    "Choosing software",
+    "Troubleshooting software",
+    "Troubleshooting hardware",
+  ];
+
   return (
     <div>
       <h1>Consult</h1>
@@ -14,6 +26,15 @@ export default function Consult() {
         scaled solution, We’ll Call Inc. has experience to guide you through any
         and all challenges.
       </p>
+
+      <List
+        size={"small"}
+        header={<div>Services</div>}
+        bordered
+        dataSource={data}
+        renderItem={(item) => <List.Item>{item}</List.Item>}
+      />
+
       <div className="col-50">
         <a href="/">
           <button type="submit">Home</button>

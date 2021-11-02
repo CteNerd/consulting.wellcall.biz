@@ -1,6 +1,9 @@
+import { List } from "antd";
 import React from "react";
 
 export default function Maintenance() {
+  const data = ["Retainer", "Annual", "Semi-Annual", "Quarterly"];
+
   return (
     <div>
       <h1>Maintenance</h1>
@@ -28,6 +31,15 @@ export default function Maintenance() {
           Quarterly - Same as annual but four (4) times a year versus once.
         </li>
       </ul>
+
+      <List
+        size={"small"}
+        header={<div>Services</div>}
+        bordered
+        dataSource={data}
+        renderItem={(item) => <List.Item>{item}</List.Item>}
+      />
+
       <div className="col-50">
         <a href="/maintenance">
           <button type="submit">Maintenance</button>
