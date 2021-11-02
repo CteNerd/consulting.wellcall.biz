@@ -28,6 +28,16 @@ export default function Maintenance() {
           Quarterly - Same as annual but four (4) times a year versus once.
         </li>
       </ul>
+      <div className="col-50">
+        <a href="/maintenance">
+          <button type="submit">Maintenance</button>
+        </a>
+      </div>
+      <div className="col-50">
+        <a href="/enhancements">
+          <button type="submit">Enhancements</button>
+        </a>
+      </div>
     </div>
   );
 }

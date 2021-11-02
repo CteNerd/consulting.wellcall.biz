@@ -50,6 +50,16 @@ export default function Enhancements() {
         what actions need to be taken. Please remember, all 3rd Party Software
         is added at the expense of the client after such client has approved.
       </p>
+      <div className="col-50">
+        <a href="/enhancements">
+          <button type="submit">Enhancements</button>
+        </a>
+      </div>
+      <div className="col-50">
+        <a href="/">
+          <button type="submit">Home</button>
+        </a>
+      </div>
     </div>
   );
 }

@@ -76,11 +76,7 @@ function App() {
         </div>
         <div className="col-33">
           <a href="https://wellcall-app-cdk.s3.amazonaws.com/Terms+and+Agreements.docx">
-          <button
-            type="submit"
-          >
-            Download Contract
-          </button>
+            <button type="submit">Download Contract</button>
           </a>
         </div>
         <div className="col-33">

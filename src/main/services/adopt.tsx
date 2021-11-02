@@ -11,7 +11,16 @@ export default function Adopt() {
         to business, so let’s help educate you on all the ins and outs. You’ll
         never be left in the dark.
       </p>
-      
+      <div className="col-50">
+        <a href="/implement">
+          <button type="submit">Implement</button>
+        </a>
+      </div>
+      <div className="col-50">
+        <a href="/maintenance">
+          <button type="submit">Maintenance</button>
+        </a>
+      </div>
     </div>
   );
 }

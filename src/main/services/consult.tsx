@@ -14,6 +14,16 @@ export default function Consult() {
         scaled solution, We’ll Call Inc. has experience to guide you through any
         and all challenges.
       </p>
+      <div className="col-50">
+        <a href="/">
+          <button type="submit">Home</button>
+        </a>
+      </div>
+      <div className="col-50">
+        <a href="/implement">
+          <button type="submit">Implement</button>
+        </a>
+      </div>
     </div>
   );
 }
