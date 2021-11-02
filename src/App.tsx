@@ -75,17 +75,13 @@ function App() {
           </a>
         </div>
         <div className="col-33">
+          <a href="https://wellcall-app-cdk.s3.amazonaws.com/Terms+and+Agreements.docx">
           <button
             type="submit"
-            onClick={() =>
-              window.open(
-                "https://facebook.com/WellCallTechConsulting",
-                "_blank"
-              )
-            }
           >
-            Schedule An Appointment Now
+            Download Contract
           </button>
+          </a>
         </div>
         <div className="col-33">
           <a href={"tel:559-574-1056"}>
