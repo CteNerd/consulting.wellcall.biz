@@ -1,4 +1,32 @@
-# Getting Started with Create React App
+# Consulting portfolio foundation
+
+This private repository is moving toward Third Down Technologies (provisional
+display brand). See the [domain and release ADR](docs/adr/0001-domain-and-release-boundaries.md).
+The approved default-branch migration is `master` to `main`.
+
+The initial foundation adds strict, pinned reporting contracts without changing
+the legacy site or deploying AWS resources.
+
+```sh
+nvm use
+npm ci --workspace @rct/portfolio-contracts --include-workspace-root=false --ignore-scripts --no-audit --no-fund
+npm run test:contracts
+```
+
+[Contract documentation](packages/contracts/README.md) describes the immutable
+authority revision, sanitization, correction semantics and update procedure.
+CI checks the new contract workspace and pinned-file integrity only. It does not
+certify the legacy frontend, provision infrastructure or enable deployment.
+Frontend migration, authorization tests, CDK synth and staging release follow in
+separate increments. Node 24 is selected for the new foundation, not a claim that
+the old CRA toolchain supports it.
+
+The CRA dependency is patched from 4.0.1 to 4.0.3 because 4.0.1 declares only
+TypeScript 3 support despite this repo already using TypeScript 4.1. The patch
+allows npm to resolve the workspace without force/legacy-peer overrides. The
+single lockfile is upgraded to npm's current format; this is not a CRA migration.
+
+## Legacy development commands (historical)
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
