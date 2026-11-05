@@ -17,7 +17,7 @@ npm run test:contracts
 authority revision, sanitization, correction semantics and update procedure.
 CI checks the new contract workspace and pinned-file integrity only. It does not
 certify the legacy frontend, provision infrastructure or enable deployment.
-Frontend migration, authorization tests, CDK synth and staging release follow in
+Frontend migration, authorization tests, CDK synth and development release follow in
 separate increments. Node 24 is selected for the new foundation, not a claim that
 the old CRA toolchain supports it.
 
@@ -25,6 +25,11 @@ The CRA dependency is patched from 4.0.1 to 4.0.3 because 4.0.1 declares only
 TypeScript 3 support despite this repo already using TypeScript 4.1. The patch
 allows npm to resolve the workspace without force/legacy-peer overrides. The
 single lockfile is upgraded to npm's current format; this is not a CRA migration.
+
+Confirmed hosts are `thirddowntech.com`, `dev.thirddowntech.com` and
+`api.thirddowntech.com`. Reuse the registered Route 53 zone; brand clearance,
+certificates, cutover and protected production environment approval remain gates.
+Scaffolding must not automatically deploy production.
 
 ## Legacy development commands (historical)
 
