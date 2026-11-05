@@ -4,27 +4,36 @@ This private repository is moving toward Third Down Technologies (provisional
 display brand). See the [domain and release ADR](docs/adr/0001-domain-and-release-boundaries.md).
 The approved default-branch migration is `master` to `main`.
 
-The initial foundation adds strict, pinned reporting contracts without changing
-the legacy site or deploying AWS resources.
+The foundation adds pinned reporting contracts, a typed React preview, API and
+authorization-policy tests, and offline CDK stacks. The legacy site is preserved;
+no AWS resources have been deployed by this increment.
 
 ```sh
 nvm use
-npm ci --workspace @rct/portfolio-contracts --include-workspace-root=false --ignore-scripts --no-audit --no-fund
+npm ci --workspaces --include-workspace-root=false --no-audit --no-fund
+npm run check:foundation
 npm run test:contracts
+npm run build:web
+npm run dev:web
 ```
 
 [Contract documentation](packages/contracts/README.md) describes the immutable
 authority revision, sanitization, correction semantics and update procedure.
-CI checks the new contract workspace and pinned-file integrity only. It does not
-certify the legacy frontend, provision infrastructure or enable deployment.
-Frontend migration, authorization tests, CDK synth and development release follow in
-separate increments. Node 24 is selected for the new foundation, not a claim that
-the old CRA toolchain supports it.
+CI checks modern workspaces, lint, dependency advisories, pins, preview build and
+both environment synths. It does not certify the legacy frontend or deploy AWS.
+Node 24 is for the new foundation, not a claim of CRA compatibility.
+The new preview is not feature parity or an approved public launch. No forms,
+payments or business data collection are enabled. Policy tests do not replace
+server-loaded assignment checks when business CRUD endpoints are introduced.
+See the [infrastructure/release runbook](infra/README.md).
 
 The CRA dependency is patched from 4.0.1 to 4.0.3 because 4.0.1 declares only
 TypeScript 3 support despite this repo already using TypeScript 4.1. The patch
 allows npm to resolve the workspace without force/legacy-peer overrides. The
 single lockfile is upgraded to npm's current format; this is not a CRA migration.
+Scoped dependency patches and compatible ESLint 7 minimatch/semver overrides
+address old peers pulled into modern linting. Moderate minimatch advisories
+remain in current CDK/ESLint tooling; CI reports them and fails at high severity.
 
 Confirmed hosts are `thirddowntech.com`, `dev.thirddowntech.com` and
 `api.thirddowntech.com`. Reuse the registered Route 53 zone; brand clearance,
