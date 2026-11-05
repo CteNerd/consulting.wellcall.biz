@@ -1,6 +1,6 @@
 # Consulting infrastructure foundation
 
-This is reviewed source, not a deployment authorization or completed application.
+This is reviewable source, not a deployment authorization or completed application.
 Run from the repository root with Node 24 and npm 11.6.2:
 
 ```sh
