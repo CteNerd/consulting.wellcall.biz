@@ -59,7 +59,7 @@ test("development foundation keeps intake closed, protects API access and provis
   template.hasResourceProperties("AWS::ApiGatewayV2::Authorizer", {
     AuthorizerType: "JWT",
     JwtConfiguration: {
-      Issuer: { "Fn::Join": ["", ["https://", { "Fn::GetAtt": [poolId, "ProviderURL"] }]] },
+      Issuer: { "Fn::GetAtt": [poolId, "ProviderURL"] },
       Audience: [{ Ref: clientId }],
     },
   });
