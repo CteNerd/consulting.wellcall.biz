@@ -19,4 +19,28 @@ h3 { font-size: 1.3rem; }
 section { padding-bottom: 3rem; scroll-margin-top: 2rem; }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 1.25rem; }
 article { border-top: 2px solid #efbd73; padding: 1.5rem; background: #192537; }
+.lead-form { display: grid; gap: 1rem; max-width: 720px; }
+.lead-form label { display: grid; gap: .4rem; }
+.lead-form input, .lead-form textarea { width: 100%; padding: .8rem; color: #e8ebf3; background: #192537; border: 1px solid #75849a; font: inherit; }
+.lead-form input:focus-visible, .lead-form textarea:focus-visible, .lead-form button:focus-visible { outline: 3px solid #efbd73; outline-offset: 3px; }
+.lead-form .consent { display: flex; align-items: flex-start; gap: .7rem; }
+.lead-form .consent input { width: auto; margin-top: .45rem; }
+.lead-form .honeypot { position: absolute; left: -10000px; }
+.lead-form button { color: #e8ebf3; background: transparent; font: inherit; cursor: pointer; justify-self: start; }
+.lead-form button:disabled { cursor: wait; opacity: .7; }
 footer { color: #bac4d5; border-top: 1px solid #344155; font-size: .9rem; }
+.admin-inbox { min-height: 65vh; }
+.admin-inbox > h1 { font-size: clamp(2.2rem, 5vw, 3.8rem); }
+.admin-actions, .pagination { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.lead-list { display: grid; gap: 1rem; margin: 2rem 0; }
+.lead-card { overflow-wrap: anywhere; }
+.lead-card-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+.lead-card-heading h2 { margin: 0; }
+.lead-message { white-space: pre-wrap; }
+.consent-detail { color: #bac4d5; font-size: .9rem; }
+.admin-inbox button { color: #e8ebf3; background: transparent; font: inherit; cursor: pointer; }
+.admin-inbox button:focus-visible { outline: 3px solid #efbd73; outline-offset: 3px; }
+.admin-inbox button:disabled { cursor: not-allowed; opacity: .6; }
+.lead-follow-up { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.lead-follow-up select { color: #e8ebf3; background: #192537; padding: .6rem; border: 1px solid #75849a; font: inherit; }
+.lead-follow-up select:focus-visible { outline: 3px solid #efbd73; outline-offset: 3px; }

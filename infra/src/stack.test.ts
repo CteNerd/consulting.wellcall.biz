@@ -5,10 +5,26 @@ import { Match, Template } from "aws-cdk-lib/assertions";
 import { configuration } from "./config.ts";
 import { ApplicationStack } from "./stack.ts";
 
-test("offline development foundation is isolated, private, JWT-protected and free of costly network resources", () => {
+test("development foundation keeps intake closed, protects API access and provisions a bounded outbox path", () => {
   const template = Template.fromStack(new ApplicationStack(new App(), configuration("development", "123456789012")));
   template.hasResourceProperties("AWS::DynamoDB::Table", {
-    TableName: "rct-consulting-development-core", BillingMode: "PAY_PER_REQUEST",
+    TableName: "rct-consulting-development-core",
+    BillingMode: "PAY_PER_REQUEST",
+    StreamSpecification: { StreamViewType: "NEW_IMAGE" },
+    TimeToLiveSpecification: { AttributeName: "expiresAt", Enabled: true },
+    GlobalSecondaryIndexes: Match.arrayWith([
+      Match.objectLike({ IndexName: "OutboxPendingIndex", Projection: { ProjectionType: "ALL" } }),
+      Match.objectLike({
+        IndexName: "LeadListingIndex",
+        Projection: {
+          ProjectionType: "INCLUDE",
+          NonKeyAttributes: [
+            "leadId", "name", "email", "company", "message", "createdAt",
+            "consentedAt", "consentPolicyVersion", "status", "version", "expiresAt",
+          ],
+        },
+      }),
+    ]),
   });
   template.hasResourceProperties("AWS::S3::Bucket", {
     PublicAccessBlockConfiguration: {
@@ -24,10 +40,22 @@ test("offline development foundation is isolated, private, JWT-protected and fre
   template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
     RouteKey: "GET /me", AuthorizationType: "JWT", AuthorizerId: Match.anyValue(),
   });
+  template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
+    RouteKey: "GET /admin/leads", AuthorizationType: "JWT", AuthorizerId: Match.anyValue(),
+  });
+  template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
+    RouteKey: "PATCH /admin/leads/{leadId}", AuthorizationType: "JWT", AuthorizerId: Match.anyValue(),
+  });
+  template.hasResourceProperties("AWS::Cognito::UserPoolGroup", {
+    GroupName: "ConsultingAdministrators",
+  });
   const [poolId] = Object.keys(template.findResources("AWS::Cognito::UserPool"));
   const [clientId] = Object.keys(template.findResources("AWS::Cognito::UserPoolClient"));
   assert.ok(poolId);
   assert.ok(clientId);
+  const [userPoolClient] = Object.values(template.findResources("AWS::Cognito::UserPoolClient"));
+  assert.ok(userPoolClient);
+  assert.deepEqual(userPoolClient.Properties.CallbackURLs, userPoolClient.Properties.LogoutURLs);
   template.hasResourceProperties("AWS::ApiGatewayV2::Authorizer", {
     AuthorizerType: "JWT",
     JwtConfiguration: {
@@ -35,12 +63,81 @@ test("offline development foundation is isolated, private, JWT-protected and fre
       Audience: [{ Ref: clientId }],
     },
   });
-  template.resourceCountIs("AWS::ApiGatewayV2::Route", 2);
+  template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
+    RouteKey: "POST /leads", AuthorizationType: "NONE",
+  });
+  template.resourceCountIs("AWS::ApiGatewayV2::Route", 5);
+  template.hasResourceProperties("AWS::ApiGatewayV2::Stage", {
+    StageName: "$default",
+    DefaultRouteSettings: { ThrottlingBurstLimit: 10, ThrottlingRateLimit: 5 },
+  });
+  template.hasResourceProperties("AWS::ApiGatewayV2::Api", {
+    CorsConfiguration: Match.objectLike({
+      AllowOrigins: Match.arrayWith(["http://127.0.0.1:5173"]),
+      AllowHeaders: Match.arrayWith(["idempotency-key"]),
+      AllowMethods: Match.arrayWith(["POST", "PATCH"]),
+    }),
+  });
   template.hasResourceProperties("AWS::Cognito::UserPool", {
     AdminCreateUserConfig: { AllowAdminCreateUserOnly: true }, MfaConfiguration: "ON",
   });
   const policies = JSON.stringify(template.findResources("AWS::IAM::Policy"));
-  assert.doesNotMatch(policies, /dynamodb:|events:|sts:AssumeRole|"Resource":"\*"/);
+  assert.match(policies, /dynamodb:GetItem/);
+  assert.doesNotMatch(policies, /dynamodb:TransactWriteItems/);
+  const [tableId] = Object.keys(template.findResources("AWS::DynamoDB::Table"));
+  assert.ok(tableId);
+  template.hasResourceProperties("AWS::IAM::Policy", {
+    PolicyDocument: {
+      Statement: Match.arrayWith([Match.objectLike({
+        Action: "dynamodb:PutItem",
+        Resource: { "Fn::GetAtt": [tableId, "Arn"] },
+        Condition: {
+          "ForAnyValue:StringEquals": { "dynamodb:EnclosingOperation": ["TransactWriteItems"] },
+          "ForAllValues:StringLike": { "dynamodb:LeadingKeys": ["LEAD#*", "IDEMPOTENCY#*", "OUTBOX#*"] },
+          Null: { "dynamodb:LeadingKeys": "false" },
+        },
+      })]),
+    },
+  });
+  assert.match(policies, /dynamodb:UpdateItem/);
+  assert.match(policies, /dynamodb:Query/);
+  assert.match(policies, /index\/LeadListingIndex/);
+  assert.match(policies, /"ForAllValues:StringLike":\{"dynamodb:LeadingKeys":\["LEAD#\*"\]\}/);
+  assert.match(policies, /events:PutEvents/);
+  assert.equal((policies.match(/events:PutEvents/g) ?? []).length, 1);
+  template.hasResourceProperties("AWS::IAM::Policy", {
+    PolicyDocument: {
+      Statement: Match.arrayWith([Match.objectLike({
+        Action: "events:PutEvents",
+        Condition: {
+          StringEquals: {
+            "events:source": "rct.consulting",
+            "events:detail-type": "consulting.lead.created.v1",
+          },
+        },
+      })]),
+    },
+  });
+  assert.match(policies, /"Action":"dynamodb:ListStreams","Effect":"Allow","Resource":"\*"/);
+  assert.equal((policies.match(/"Resource":"\*"/g) ?? []).length, 1);
+  assert.doesNotMatch(policies, /dynamodb:Scan|dynamodb:DeleteItem|sts:AssumeRole/);
+  template.hasResourceProperties("AWS::Events::Rule", { ScheduleExpression: "rate(5 minutes)" });
+  template.hasResourceProperties("AWS::SQS::Queue", {
+    QueueName: "rct-consulting-development-outbox-publisher-failures",
+    MessageRetentionPeriod: 1209600,
+  });
+  template.hasResourceProperties("AWS::Lambda::EventSourceMapping", {
+    BatchSize: 10,
+    MaximumRetryAttempts: 5,
+    MaximumRecordAgeInSeconds: 86400,
+    FunctionResponseTypes: ["ReportBatchItemFailures"],
+  });
+  const mapping = JSON.stringify(template.findResources("AWS::Lambda::EventSourceMapping"));
+  assert.match(mapping, /FilterCriteria/);
+  assert.match(mapping, /OUTBOX/);
+  template.hasParameter("LeadIntakeEnabled", { Default: "false", AllowedValues: ["false", "true"] });
+  template.hasParameter("LeadConsentPolicyVersion", { Default: "" });
+  template.hasParameter("LeadRetentionDays", { Default: 0 });
   assert.match(policies, /logs:PutLogEvents/);
 });
 
@@ -54,6 +151,40 @@ test("production data is retained, backed up and protected from deletion", () =>
     }),
   });
   template.hasResource("AWS::Cognito::UserPool", { DeletionPolicy: "Retain" });
+  template.resourceCountIs("AWS::Cognito::UserPoolDomain", 0);
+  template.resourceCountIs("AWS::IAM::ManagedPolicy", 0);
+});
+
+test("development web publisher has exact OIDC trust and a matching artifact-only permissions boundary", () => {
+  const template = Template.fromStack(new ApplicationStack(new App(), configuration("development", "123456789012")));
+  template.resourceCountIs("AWS::IAM::OIDCProvider", 0);
+  template.hasResourceProperties("AWS::Cognito::UserPoolDomain", {
+    Domain: "rct-consulting-development-123456789012",
+  });
+  const publisher = Object.values(template.findResources("AWS::IAM::Role")).find((role) =>
+    role.Properties.RoleName === "rct-consulting-development-web-publish");
+  assert.ok(publisher);
+  assert.deepEqual(publisher.Properties.PermissionsBoundary, publisher.Properties.ManagedPolicyArns[0]);
+  assert.deepEqual(publisher.Properties.AssumeRolePolicyDocument.Statement[0].Condition.StringEquals, {
+    "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+    "token.actions.githubusercontent.com:sub": "repo:CteNerd/consulting.wellcall.biz:environment:development",
+  });
+  const policies = JSON.stringify(template.findResources("AWS::IAM::ManagedPolicy"));
+  const [bucketId] = Object.keys(template.findResources("AWS::S3::Bucket"));
+  assert.ok(bucketId);
+  template.hasResourceProperties("AWS::IAM::ManagedPolicy", {
+    PolicyDocument: {
+      Statement: Match.arrayWith([Match.objectLike({
+        Action: ["s3:GetBucketLocation", "s3:GetBucketPublicAccessBlock", "s3:GetBucketPolicyStatus", "s3:ListBucket"],
+        Resource: { "Fn::GetAtt": [bucketId, "Arn"] },
+      })]),
+    },
+  });
+  assert.match(policies, /s3:PutObject/);
+  assert.match(policies, /assets\/\*|index\.html/);
+  assert.match(policies, /cloudfront:CreateInvalidation/);
+  assert.match(policies, /cloudformation:DescribeStacks/);
+  assert.doesNotMatch(policies, /DeleteObject|PutBucket|UpdateDistribution|CreateStack|ExecuteChangeSet|iam:|dynamodb:|"Resource":"\*"/);
 });
 
 test("custom DNS reuses only the existing zone and production requires explicit clearance", () => {
