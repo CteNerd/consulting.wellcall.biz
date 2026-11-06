@@ -122,6 +122,30 @@ test("production data is retained, backed up and protected from deletion", () =>
     }),
   });
   template.hasResource("AWS::Cognito::UserPool", { DeletionPolicy: "Retain" });
+  template.resourceCountIs("AWS::Cognito::UserPoolDomain", 0);
+  template.resourceCountIs("AWS::IAM::ManagedPolicy", 0);
+});
+
+test("development web publisher has exact OIDC trust and a matching artifact-only permissions boundary", () => {
+  const template = Template.fromStack(new ApplicationStack(new App(), configuration("development", "123456789012")));
+  template.resourceCountIs("AWS::IAM::OIDCProvider", 0);
+  template.hasResourceProperties("AWS::Cognito::UserPoolDomain", {
+    Domain: "rct-consulting-development-123456789012",
+  });
+  const publisher = Object.values(template.findResources("AWS::IAM::Role")).find((role) =>
+    role.Properties.RoleName === "rct-consulting-development-web-publish");
+  assert.ok(publisher);
+  assert.deepEqual(publisher.Properties.PermissionsBoundary, publisher.Properties.ManagedPolicyArns[0]);
+  assert.deepEqual(publisher.Properties.AssumeRolePolicyDocument.Statement[0].Condition.StringEquals, {
+    "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+    "token.actions.githubusercontent.com:sub": "repo:CteNerd/consulting.wellcall.biz:environment:development",
+  });
+  const policies = JSON.stringify(template.findResources("AWS::IAM::ManagedPolicy"));
+  assert.match(policies, /s3:PutObject/);
+  assert.match(policies, /assets\/\*|index\.html/);
+  assert.match(policies, /cloudfront:CreateInvalidation/);
+  assert.match(policies, /cloudformation:DescribeStacks/);
+  assert.doesNotMatch(policies, /DeleteObject|PutBucket|UpdateDistribution|CreateStack|ExecuteChangeSet|iam:|dynamodb:|"Resource":"\*"/);
 });
 
 test("custom DNS reuses only the existing zone and production requires explicit clearance", () => {
