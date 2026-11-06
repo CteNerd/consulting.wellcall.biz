@@ -1,4 +1,5 @@
 import { brand } from "./branding.ts";
+import { LeadForm } from "./LeadForm.tsx";
 import "./style.css";
 
 export function App() {
@@ -28,7 +29,7 @@ export function App() {
         <section id="services" aria-labelledby="services-title">
           <h2 id="services-title">A foundation for what comes next.</h2>
           <ul><li>Digital foundations</li><li>Engineering, AI and automation</li><li>Fractional technology leadership</li></ul>
-          <p>Discovery booking and client workspaces are being built. This preview does not accept inquiries or payments.</p>
+          <LeadForm />
         </section>
       </main>
       <footer>Development preview. Brand and public launch remain subject to approval.</footer>

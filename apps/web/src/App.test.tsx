@@ -11,5 +11,5 @@ test("preview has accessible navigation and no premature inquiry or payment coll
   expect(screen.getByText("Rethink. Create. Transform.")).toBeDefined();
   expect(screen.getByRole("link", { name: "Skip to content" }).getAttribute("href")).toBe("#main");
   expect(document.querySelector("form")).toBeNull();
-  expect(screen.getByText(/does not accept inquiries or payments/)).toBeDefined();
+  expect(screen.getByText(/inquiries are not open in this preview/)).toBeDefined();
 });

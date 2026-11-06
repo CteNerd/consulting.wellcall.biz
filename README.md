@@ -22,10 +22,13 @@ authority revision, sanitization, correction semantics and update procedure.
 CI checks modern workspaces, lint, dependency advisories, pins, preview build and
 both environment synths. It does not certify the legacy frontend or deploy AWS.
 Node 24 is for the new foundation, not a claim of CRA compatibility.
-The new preview is not feature parity or an approved public launch. No forms,
-payments or business data collection are enabled. Policy tests do not replace
-server-loaded assignment checks when business CRUD endpoints are introduced.
-See the [infrastructure/release runbook](infra/README.md).
+The new preview is not feature parity or an approved public launch. A lead
+inquiry form and atomic API/outbox path are implemented but disabled by default;
+enabling them requires approved consent and retention settings, an admin CRM
+and operational notification/recovery verification. No AWS resources have been
+deployed. Policy tests do not replace server-loaded assignment checks when
+business CRUD endpoints are introduced. See the
+[infrastructure/release runbook](infra/README.md).
 
 The CRA dependency is patched from 4.0.1 to 4.0.3 because 4.0.1 declares only
 TypeScript 3 support despite this repo already using TypeScript 4.1. The patch

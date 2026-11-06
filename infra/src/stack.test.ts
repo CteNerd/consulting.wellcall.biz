@@ -5,10 +5,16 @@ import { Match, Template } from "aws-cdk-lib/assertions";
 import { configuration } from "./config.ts";
 import { ApplicationStack } from "./stack.ts";
 
-test("offline development foundation is isolated, private, JWT-protected and free of costly network resources", () => {
+test("development foundation keeps intake closed, protects API access and provisions a bounded outbox path", () => {
   const template = Template.fromStack(new ApplicationStack(new App(), configuration("development", "123456789012")));
   template.hasResourceProperties("AWS::DynamoDB::Table", {
-    TableName: "rct-consulting-development-core", BillingMode: "PAY_PER_REQUEST",
+    TableName: "rct-consulting-development-core",
+    BillingMode: "PAY_PER_REQUEST",
+    StreamSpecification: { StreamViewType: "NEW_IMAGE" },
+    TimeToLiveSpecification: { AttributeName: "expiresAt", Enabled: true },
+    GlobalSecondaryIndexes: Match.arrayWith([
+      Match.objectLike({ IndexName: "OutboxPendingIndex", Projection: { ProjectionType: "ALL" } }),
+    ]),
   });
   template.hasResourceProperties("AWS::S3::Bucket", {
     PublicAccessBlockConfiguration: {
@@ -35,12 +41,50 @@ test("offline development foundation is isolated, private, JWT-protected and fre
       Audience: [{ Ref: clientId }],
     },
   });
-  template.resourceCountIs("AWS::ApiGatewayV2::Route", 2);
+  template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
+    RouteKey: "POST /leads", AuthorizationType: "NONE",
+  });
+  template.resourceCountIs("AWS::ApiGatewayV2::Route", 3);
+  template.hasResourceProperties("AWS::ApiGatewayV2::Stage", {
+    StageName: "$default",
+    DefaultRouteSettings: { ThrottlingBurstLimit: 10, ThrottlingRateLimit: 5 },
+  });
+  template.hasResourceProperties("AWS::ApiGatewayV2::Api", {
+    CorsConfiguration: Match.objectLike({
+      AllowOrigins: Match.arrayWith(["http://127.0.0.1:5173"]),
+      AllowHeaders: Match.arrayWith(["idempotency-key"]),
+      AllowMethods: Match.arrayWith(["POST"]),
+    }),
+  });
   template.hasResourceProperties("AWS::Cognito::UserPool", {
     AdminCreateUserConfig: { AllowAdminCreateUserOnly: true }, MfaConfiguration: "ON",
   });
   const policies = JSON.stringify(template.findResources("AWS::IAM::Policy"));
-  assert.doesNotMatch(policies, /dynamodb:|events:|sts:AssumeRole|"Resource":"\*"/);
+  assert.match(policies, /dynamodb:GetItem/);
+  assert.match(policies, /dynamodb:TransactWriteItems/);
+  assert.match(policies, /dynamodb:UpdateItem/);
+  assert.match(policies, /dynamodb:Query/);
+  assert.match(policies, /events:PutEvents/);
+  assert.match(policies, /"Action":"dynamodb:ListStreams","Effect":"Allow","Resource":"\*"/);
+  assert.equal((policies.match(/"Resource":"\*"/g) ?? []).length, 1);
+  assert.doesNotMatch(policies, /dynamodb:Scan|dynamodb:DeleteItem|sts:AssumeRole/);
+  template.hasResourceProperties("AWS::Events::Rule", { ScheduleExpression: "rate(5 minutes)" });
+  template.hasResourceProperties("AWS::SQS::Queue", {
+    QueueName: "rct-consulting-development-outbox-publisher-failures",
+    MessageRetentionPeriod: 1209600,
+  });
+  template.hasResourceProperties("AWS::Lambda::EventSourceMapping", {
+    BatchSize: 10,
+    MaximumRetryAttempts: 5,
+    MaximumRecordAgeInSeconds: 86400,
+    FunctionResponseTypes: ["ReportBatchItemFailures"],
+  });
+  const mapping = JSON.stringify(template.findResources("AWS::Lambda::EventSourceMapping"));
+  assert.match(mapping, /FilterCriteria/);
+  assert.match(mapping, /OUTBOX/);
+  template.hasParameter("LeadIntakeEnabled", { Default: "false", AllowedValues: ["false", "true"] });
+  template.hasParameter("LeadConsentPolicyVersion", { Default: "" });
+  template.hasParameter("LeadRetentionDays", { Default: 0 });
   assert.match(policies, /logs:PutLogEvents/);
 });
 

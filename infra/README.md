@@ -20,19 +20,40 @@ Missing or invalid target context fails. `us-east-1` is explicit.
 ## What the templates define
 
 - Independent `rct-consulting-development` / `rct-consulting-production` resources.
-- On-demand core table; production PITR, deletion protection and retention.
+- On-demand core table; production PITR and deletion protection. Lead records use
+  DynamoDB TTL only after an explicit retention value is provided.
 - Private S3 with CloudFront OAC, HTTPS redirection and security headers.
   Assets are not uploaded by synth. No broad SPA error fallback is configured.
 - Invitation-only Cognito with required authenticator MFA and a public client.
   No signup/login UI, hosted login domain or initial users are provisioned.
-- Node 24 Lambda, explicit scoped log-write role, 7/30-day dev/prod logs.
-- HTTP API: public `GET /health`, JWT-protected `GET /me`, exact web-origin CORS.
-  The handler has no database, EventBridge, finance or business-write access.
-- No VPC, NAT, RDS, EventBridge or legacy resource ownership changes.
+- Node 24 API and outbox-publisher Lambdas with separate scoped roles and
+  7/30-day dev/prod logs.
+- HTTP API: public `GET /health` and `POST /leads`, JWT-protected `GET /me`,
+  exact web-origin CORS and bounded stage throttling. Lead intake defaults off;
+  enabling it requires explicit intake, consent-policy-version and retention
+  parameters. The API role can read idempotency records and transact lead,
+  idempotency and sanitized outbox writes in the Consulting table.
+- DynamoDB Streams publish only strict, aggregate-only reporting details to the
+  portfolio EventBridge bus discovered from SSM. Failed stream batches go to a
+  14-day SQS failure queue; a five-minute reconciliation schedule retries
+  pending outbox records. The event reporting month is based on UTC and API
+  idempotency keys are retained for 24 hours.
+- No VPC, NAT, RDS, portfolio-owned EventBridge bus or legacy resource ownership
+  changes.
 
-Only the health/identity foundation is runnable. Project/time/finance policies
-are tested separately, not implemented CRUD endpoints. Future APIs must derive
-the caller from verified claims, load trusted memberships and assignments, and
+Lead submission has bounded input, exact consent-version validation, a spam
+honeypot, API throttling, client idempotency and atomic business/outbox writes.
+PII is stored only in the domain table with the explicitly configured TTL; the
+reporting event contains no lead details. The public form also stays hidden
+unless its build-time API URL, approved consent copy/version and enable flag are
+present. The default stack and preview remain closed.
+
+This is not yet a launch-ready intake operation: no admin CRM UI, lead
+notification, CAPTCHA/WAF control, owner assignment or live event-delivery
+verification exists. Do not enable intake until those operational gaps and the
+consent/retention policy are approved. Project/time/finance policies remain
+tested separately, not implemented CRUD endpoints. Future APIs must derive the
+caller from verified claims, load trusted memberships and assignments, and
 apply those policies before data access. Never authorize from request-body roles.
 
 ## DNS and release gates
