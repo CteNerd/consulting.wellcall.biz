@@ -14,6 +14,16 @@ test("development foundation keeps intake closed, protects API access and provis
     TimeToLiveSpecification: { AttributeName: "expiresAt", Enabled: true },
     GlobalSecondaryIndexes: Match.arrayWith([
       Match.objectLike({ IndexName: "OutboxPendingIndex", Projection: { ProjectionType: "ALL" } }),
+      Match.objectLike({
+        IndexName: "LeadListingIndex",
+        Projection: {
+          ProjectionType: "INCLUDE",
+          NonKeyAttributes: [
+            "leadId", "name", "email", "company", "message", "createdAt",
+            "consentedAt", "consentPolicyVersion",
+          ],
+        },
+      }),
     ]),
   });
   template.hasResourceProperties("AWS::S3::Bucket", {
@@ -30,10 +40,19 @@ test("development foundation keeps intake closed, protects API access and provis
   template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
     RouteKey: "GET /me", AuthorizationType: "JWT", AuthorizerId: Match.anyValue(),
   });
+  template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
+    RouteKey: "GET /admin/leads", AuthorizationType: "JWT", AuthorizerId: Match.anyValue(),
+  });
+  template.hasResourceProperties("AWS::Cognito::UserPoolGroup", {
+    GroupName: "ConsultingAdministrators",
+  });
   const [poolId] = Object.keys(template.findResources("AWS::Cognito::UserPool"));
   const [clientId] = Object.keys(template.findResources("AWS::Cognito::UserPoolClient"));
   assert.ok(poolId);
   assert.ok(clientId);
+  const [userPoolClient] = Object.values(template.findResources("AWS::Cognito::UserPoolClient"));
+  assert.ok(userPoolClient);
+  assert.deepEqual(userPoolClient.Properties.CallbackURLs, userPoolClient.Properties.LogoutURLs);
   template.hasResourceProperties("AWS::ApiGatewayV2::Authorizer", {
     AuthorizerType: "JWT",
     JwtConfiguration: {
@@ -44,7 +63,7 @@ test("development foundation keeps intake closed, protects API access and provis
   template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
     RouteKey: "POST /leads", AuthorizationType: "NONE",
   });
-  template.resourceCountIs("AWS::ApiGatewayV2::Route", 3);
+  template.resourceCountIs("AWS::ApiGatewayV2::Route", 4);
   template.hasResourceProperties("AWS::ApiGatewayV2::Stage", {
     StageName: "$default",
     DefaultRouteSettings: { ThrottlingBurstLimit: 10, ThrottlingRateLimit: 5 },
@@ -64,6 +83,7 @@ test("development foundation keeps intake closed, protects API access and provis
   assert.match(policies, /dynamodb:TransactWriteItems/);
   assert.match(policies, /dynamodb:UpdateItem/);
   assert.match(policies, /dynamodb:Query/);
+  assert.match(policies, /index\/LeadListingIndex/);
   assert.match(policies, /events:PutEvents/);
   assert.match(policies, /"Action":"dynamodb:ListStreams","Effect":"Allow","Resource":"\*"/);
   assert.equal((policies.match(/"Resource":"\*"/g) ?? []).length, 1);

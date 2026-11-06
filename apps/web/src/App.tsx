@@ -1,14 +1,25 @@
 import { brand } from "./branding.ts";
+import { AdminInbox } from "./AdminInbox.tsx";
+import { readAdminAuthConfiguration } from "./admin-auth.ts";
 import { LeadForm } from "./LeadForm.tsx";
 import "./style.css";
 
 export function App() {
+  const search = new URLSearchParams(window.location.search);
+  if (search.has("admin") || search.has("code") || search.has("state") || search.has("error")) {
+    return <AdminInbox />;
+  }
+  const adminConfigured = readAdminAuthConfiguration(import.meta.env, window.location.origin) !== undefined;
   return (
     <>
       <a className="skip" href="#main">Skip to content</a>
       <header>
         <p className="wordmark">{brand.name}</p>
-        <nav aria-label="Main navigation"><a href="#approach">Our approach</a><a href="#services">Services</a></nav>
+        <nav aria-label="Main navigation">
+          <a href="#approach">Our approach</a>
+          <a href="#services">Services</a>
+          {adminConfigured && <a href="/?admin">Admin inbox</a>}
+        </nav>
       </header>
       <main id="main">
         <section className="hero" aria-labelledby="headline">

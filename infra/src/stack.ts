@@ -52,6 +52,16 @@ export class ApplicationStack extends Stack {
       sortKey: { name: "GSI2SK", type: dynamodb.AttributeType.STRING },
       projectionType: dynamodb.ProjectionType.ALL,
     });
+    core.addGlobalSecondaryIndex({
+      indexName: "LeadListingIndex",
+      partitionKey: { name: "GSI1PK", type: dynamodb.AttributeType.STRING },
+      sortKey: { name: "GSI1SK", type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.INCLUDE,
+      nonKeyAttributes: [
+        "leadId", "name", "email", "company", "message", "createdAt",
+        "consentedAt", "consentPolicyVersion",
+      ],
+    });
     const bucket = new s3.Bucket(this, "WebAssets", {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       encryption: s3.BucketEncryption.S3_MANAGED,
@@ -92,13 +102,17 @@ export class ApplicationStack extends Stack {
       passwordPolicy: { minLength: 14, requireDigits: true, requireSymbols: true, requireLowercase: true, requireUppercase: true },
       removalPolicy,
     });
+    pool.addGroup("ConsultingAdministrators", {
+      groupName: "ConsultingAdministrators",
+      description: "Users authorized to access the Consulting lead inbox.",
+    });
     const client = pool.addClient("Browser", {
       generateSecret: false, preventUserExistenceErrors: true,
       authFlows: { userSrp: true },
       oAuth: {
         flows: { authorizationCodeGrant: true },
-        callbackUrls: [`${webOrigin}/auth/callback`],
-        logoutUrls: [webOrigin],
+        callbackUrls: [`${webOrigin}/`],
+        logoutUrls: [`${webOrigin}/`],
       },
     });
     const logGroup = new logs.LogGroup(this, "ApiLogs", {
@@ -111,6 +125,10 @@ export class ApplicationStack extends Stack {
     role.addToPolicy(new iam.PolicyStatement({
       actions: ["dynamodb:GetItem", "dynamodb:TransactWriteItems"],
       resources: [core.tableArn],
+    }));
+    role.addToPolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:Query"],
+      resources: [`${core.tableArn}/index/LeadListingIndex`],
     }));
     const intakeEnabled = new CfnParameter(this, "LeadIntakeEnabled", {
       type: "String", default: "false", allowedValues: ["false", "true"],
@@ -154,9 +172,14 @@ export class ApplicationStack extends Stack {
     });
     const integration = new HttpLambdaIntegration("ApiIntegration", handler);
     api.addRoutes({ path: "/health", methods: [apigateway.HttpMethod.GET], integration });
+    const jwtAuthorizer = new HttpJwtAuthorizer("Cognito", `https://${pool.userPoolProviderUrl}`, {
+      jwtAudience: [client.userPoolClientId],
+    });
     api.addRoutes({
-      path: "/me", methods: [apigateway.HttpMethod.GET], integration,
-      authorizer: new HttpJwtAuthorizer("Cognito", `https://${pool.userPoolProviderUrl}`, { jwtAudience: [client.userPoolClientId] }),
+      path: "/me", methods: [apigateway.HttpMethod.GET], integration, authorizer: jwtAuthorizer,
+    });
+    api.addRoutes({
+      path: "/admin/leads", methods: [apigateway.HttpMethod.GET], integration, authorizer: jwtAuthorizer,
     });
     api.addRoutes({ path: "/leads", methods: [apigateway.HttpMethod.POST], integration });
     if (zone && certificate && config.apiDomain) {

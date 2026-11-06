@@ -24,6 +24,8 @@ test("lead, idempotency key and PII-free reporting outbox are one conditional tr
   const outboxItem = items[1]!.Put!.Item!;
   const idempotencyItem = items[2]!.Put!.Item!;
   assert.equal(leadItem.email, "person@example.com");
+  assert.equal(leadItem.GSI1PK, "LEAD");
+  assert.equal(leadItem.GSI1SK, `${lead.createdAt}#${lead.leadId}`);
   assert.equal(leadItem.consentedAt, "2026-11-05T16:00:00.000Z");
   assert.equal(leadItem.consentPolicyVersion, "2026-01");
   assert.equal(idempotencyItem.leadId, lead.leadId);

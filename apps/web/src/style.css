@@ -29,3 +29,15 @@ article { border-top: 2px solid #efbd73; padding: 1.5rem; background: #192537; }
 .lead-form button { color: #e8ebf3; background: transparent; font: inherit; cursor: pointer; justify-self: start; }
 .lead-form button:disabled { cursor: wait; opacity: .7; }
 footer { color: #bac4d5; border-top: 1px solid #344155; font-size: .9rem; }
+.admin-inbox { min-height: 65vh; }
+.admin-inbox > h1 { font-size: clamp(2.2rem, 5vw, 3.8rem); }
+.admin-actions, .pagination { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.lead-list { display: grid; gap: 1rem; margin: 2rem 0; }
+.lead-card { overflow-wrap: anywhere; }
+.lead-card-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+.lead-card-heading h2 { margin: 0; }
+.lead-message { white-space: pre-wrap; }
+.consent-detail { color: #bac4d5; font-size: .9rem; }
+.admin-inbox button { color: #e8ebf3; background: transparent; font: inherit; cursor: pointer; }
+.admin-inbox button:focus-visible { outline: 3px solid #efbd73; outline-offset: 3px; }
+.admin-inbox button:disabled { cursor: not-allowed; opacity: .6; }

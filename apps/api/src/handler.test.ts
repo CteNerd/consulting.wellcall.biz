@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createApiHandler, handler, type Request } from "./handler.ts";
-import { IdempotencyConflictError } from "./lead-store.ts";
-import type { LeadWriter } from "./leads.ts";
+import { IdempotencyConflictError, InvalidLeadCursorError } from "./lead-store.ts";
+import type { LeadReader, LeadWriter } from "./leads.ts";
 
 function request(path: string, method = "GET", body?: unknown): Request {
   return {
@@ -123,6 +123,61 @@ test("reusing a submission key with different content returns conflict", async (
   event.headers["content-type"] = "application/json";
   event.headers["idempotency-key"] = "b9de9897-5f48-4a63-a872-1d1b53bd64a5";
   assert.equal((await api(event)).statusCode, 409);
+});
+
+test("lead inbox requires the verified administrator group and returns a bounded page", async () => {
+  let reads = 0;
+  const api = createApiHandler({
+    leadWriter: { create: async () => "created" },
+    leadReader: {
+      listLatest: async (cursor) => {
+        reads += 1;
+        assert.equal(cursor, undefined);
+        return {
+          leads: [{
+            leadId: "lead-1", name: "Riley Example", email: "person@example.com",
+            company: "", message: "Project inquiry", createdAt: "2026-11-05T16:00:00.000Z",
+            consentedAt: "2026-11-05T16:00:00.000Z", consentPolicyVersion: "2026-01",
+          }],
+          nextToken: null,
+        };
+      },
+    } satisfies LeadReader,
+    leadIntake: { enabled: false, consentPolicyVersion: "", retentionDays: 0 },
+  });
+  const event = request("/admin/leads");
+  event.requestContext.authorizer = { jwt: { claims: { sub: "member-1", "cognito:groups": ["Other"] } } };
+  assert.equal((await api(event)).statusCode, 403);
+  assert.equal(reads, 0);
+
+  event.requestContext.authorizer = {
+    jwt: { claims: { sub: "admin-1", "cognito:groups": '["ConsultingAdministrators"]' } },
+  };
+  const result = await api(event);
+  assert.equal(result.statusCode, 200);
+  assert.deepEqual(JSON.parse(result.body!), {
+    leads: [{
+      leadId: "lead-1", name: "Riley Example", email: "person@example.com",
+      company: "", message: "Project inquiry", createdAt: "2026-11-05T16:00:00.000Z",
+      consentedAt: "2026-11-05T16:00:00.000Z", consentPolicyVersion: "2026-01",
+    }],
+    nextToken: null,
+  });
+  assert.equal(reads, 1);
+});
+
+test("lead inbox rejects invalid cursors without falling back to an unbounded query", async () => {
+  const api = createApiHandler({
+    leadWriter: { create: async () => "created" },
+    leadReader: { listLatest: async () => { throw new InvalidLeadCursorError(); } },
+    leadIntake: { enabled: false, consentPolicyVersion: "", retentionDays: 0 },
+  });
+  const event = request("/admin/leads");
+  event.queryStringParameters = { nextToken: "invalid" };
+  event.requestContext.authorizer = {
+    jwt: { claims: { sub: "admin-1", "cognito:groups": ["ConsultingAdministrators"] } },
+  };
+  assert.equal((await api(event)).statusCode, 400);
 });
 
 function validSubmission() {

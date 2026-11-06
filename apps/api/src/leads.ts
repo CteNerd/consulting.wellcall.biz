@@ -29,8 +29,25 @@ export type StoredLead = LeadSubmission & {
   expiresAt: number;
 };
 
+export type LeadRecord = {
+  leadId: string;
+  name: string;
+  email: string;
+  company: string;
+  message: string;
+  createdAt: string;
+  consentedAt: string;
+  consentPolicyVersion: string;
+};
+
+export type LeadPage = { leads: LeadRecord[]; nextToken: string | null };
+
 export type LeadWriter = {
   create(lead: StoredLead, event: ReportingEvent): Promise<"created" | "duplicate">;
+};
+
+export type LeadReader = {
+  listLatest(nextToken: string | undefined): Promise<LeadPage>;
 };
 
 export function isReportingEvent(value: unknown): value is ReportingEvent {

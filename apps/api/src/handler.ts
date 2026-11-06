@@ -1,8 +1,8 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from "aws-lambda";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
-import { DynamoLeadWriter, IdempotencyConflictError } from "./lead-store.ts";
-import { createLeadRecord, parseLeadSubmission, type LeadWriter } from "./leads.ts";
+import { DynamoLeadReader, DynamoLeadWriter, IdempotencyConflictError, InvalidLeadCursorError } from "./lead-store.ts";
+import { createLeadRecord, parseLeadSubmission, type LeadReader, type LeadWriter } from "./leads.ts";
 
 export type Request = APIGatewayProxyEventV2 & {
   requestContext: {
@@ -18,11 +18,13 @@ export type LeadIntakeConfig = {
 
 type HandlerDependencies = {
   leadWriter: LeadWriter;
+  leadReader?: LeadReader;
   leadIntake: LeadIntakeConfig;
   now?: () => Date;
 };
 
 const maxBodyBytes = 16 * 1024;
+const adminGroup = "ConsultingAdministrators";
 
 function response(statusCode: number, body: object): APIGatewayProxyStructuredResultV2 {
   return {
@@ -45,11 +47,59 @@ export function createApiHandler(dependencies: HandlerDependencies) {
       }
       return response(200, { userId: subject });
     }
+    if (method === "GET" && event.rawPath === "/admin/leads") {
+      return listLeads(event, dependencies);
+    }
     if (method === "POST" && event.rawPath === "/leads") {
       return submitLead(event, dependencies);
     }
     return response(404, { error: "Not found" });
   };
+}
+
+async function listLeads(
+  event: Request,
+  dependencies: HandlerDependencies,
+): Promise<APIGatewayProxyStructuredResultV2> {
+  const claims = event.requestContext.authorizer?.jwt?.claims;
+  const subject = claims?.sub;
+  if (typeof subject !== "string" || subject.length === 0) {
+    return response(401, { error: "Authentication required" });
+  }
+  if (!hasAdminGroup(claims?.["cognito:groups"])) {
+    return response(403, { error: "Administrator access required" });
+  }
+  if (!dependencies.leadReader) return response(503, { error: "Lead inbox is not available" });
+  const nextToken = event.queryStringParameters?.nextToken;
+  if (nextToken !== undefined && nextToken.length > 2048) {
+    return response(400, { error: "Invalid page token" });
+  }
+  try {
+    const page = await dependencies.leadReader.listLatest(nextToken);
+    console.info(JSON.stringify({
+      event: "admin_lead_list_access",
+      actorSub: subject,
+      requestId: event.requestContext.requestId,
+      resultCount: page.leads.length,
+    }));
+    return response(200, page);
+  } catch (error) {
+    if (error instanceof InvalidLeadCursorError) return response(400, { error: "Invalid page token" });
+    console.error("Lead inbox read failed", error instanceof Error ? error.name : "UnknownError");
+    return response(500, { error: "Unable to load lead inbox" });
+  }
+}
+
+function hasAdminGroup(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some((group) => group === adminGroup);
+  if (typeof value !== "string") return false;
+  if (value === adminGroup) return true;
+  try {
+    const groups: unknown = JSON.parse(value);
+    return Array.isArray(groups) && groups.some((group) => group === adminGroup);
+  } catch {
+    return false;
+  }
 }
 
 async function submitLead(
@@ -96,6 +146,7 @@ const configuredRetentionDays = Number(process.env.LEAD_RETENTION_DAYS);
 const configuredConsentVersion = process.env.LEAD_CONSENT_POLICY_VERSION?.trim() ?? "";
 export const handler = createApiHandler({
   leadWriter: new DynamoLeadWriter(client, process.env.CORE_TABLE_NAME ?? ""),
+  leadReader: new DynamoLeadReader(client, process.env.CORE_TABLE_NAME ?? ""),
   leadIntake: {
     enabled: process.env.LEAD_INTAKE_ENABLED === "true",
     consentPolicyVersion: configuredConsentVersion,

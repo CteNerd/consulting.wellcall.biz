@@ -25,11 +25,16 @@ Missing or invalid target context fails. `us-east-1` is explicit.
 - Private S3 with CloudFront OAC, HTTPS redirection and security headers.
   Assets are not uploaded by synth. No broad SPA error fallback is configured.
 - Invitation-only Cognito with required authenticator MFA and a public client.
-  No signup/login UI, hosted login domain or initial users are provisioned.
+  The web source includes a configuration-gated PKCE admin sign-in and inbox;
+  no hosted login domain or initial users are provisioned.
 - Node 24 API and outbox-publisher Lambdas with separate scoped roles and
   7/30-day dev/prod logs.
-- HTTP API: public `GET /health` and `POST /leads`, JWT-protected `GET /me`,
-  exact web-origin CORS and bounded stage throttling. Lead intake defaults off;
+- HTTP API: public `GET /health` and `POST /leads`, JWT-protected `GET /me` and
+  `GET /admin/leads`, exact web-origin CORS and bounded stage throttling. The
+  lead inbox also requires the `ConsultingAdministrators` Cognito group in the
+  verified token; its reader can query only the PII-projected `LeadListingIndex`
+  and returns at most 25 records per page. The group has no members by default.
+  Lead intake defaults off;
   enabling it requires explicit intake, consent-policy-version and retention
   parameters. The API role can read idempotency records and transact lead,
   idempotency and sanitized outbox writes in the Consulting table.
@@ -48,8 +53,14 @@ reporting event contains no lead details. The public form also stays hidden
 unless its build-time API URL, approved consent copy/version and enable flag are
 present. The default stack and preview remain closed.
 
-This is not yet a launch-ready intake operation: no admin CRM UI, lead
-notification, CAPTCHA/WAF control, owner assignment or live event-delivery
+The inbox UI stays unavailable unless all four HTTPS build settings are present:
+`VITE_ADMIN_AUTH_URL` (Cognito hosted UI origin), `VITE_ADMIN_API_URL`,
+`VITE_ADMIN_CLIENT_ID` and `VITE_ADMIN_USER_POOL_ID`. It uses authorization-code
+PKCE, keeps access tokens in memory, and sends them only to the API. The client
+is a public OAuth client; never add a client secret to the web build.
+
+This is not yet a launch-ready intake operation: no hosted Cognito login domain,
+lead notification, CAPTCHA/WAF control, owner assignment or live event-delivery
 verification exists. Do not enable intake until those operational gaps and the
 consent/retention policy are approved. Project/time/finance policies remain
 tested separately, not implemented CRUD endpoints. Future APIs must derive the
