@@ -41,3 +41,6 @@ footer { color: #bac4d5; border-top: 1px solid #344155; font-size: .9rem; }
 .admin-inbox button { color: #e8ebf3; background: transparent; font: inherit; cursor: pointer; }
 .admin-inbox button:focus-visible { outline: 3px solid #efbd73; outline-offset: 3px; }
 .admin-inbox button:disabled { cursor: not-allowed; opacity: .6; }
+.lead-follow-up { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.lead-follow-up select { color: #e8ebf3; background: #192537; padding: .6rem; border: 1px solid #75849a; font: inherit; }
+.lead-follow-up select:focus-visible { outline: 3px solid #efbd73; outline-offset: 3px; }

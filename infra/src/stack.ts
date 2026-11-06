@@ -59,7 +59,7 @@ export class ApplicationStack extends Stack {
       projectionType: dynamodb.ProjectionType.INCLUDE,
       nonKeyAttributes: [
         "leadId", "name", "email", "company", "message", "createdAt",
-        "consentedAt", "consentPolicyVersion",
+        "consentedAt", "consentPolicyVersion", "status", "version", "expiresAt",
       ],
     });
     const bucket = new s3.Bucket(this, "WebAssets", {
@@ -130,6 +130,11 @@ export class ApplicationStack extends Stack {
       actions: ["dynamodb:Query"],
       resources: [`${core.tableArn}/index/LeadListingIndex`],
     }));
+    role.addToPolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:UpdateItem"],
+      resources: [core.tableArn],
+      conditions: { "ForAllValues:StringLike": { "dynamodb:LeadingKeys": ["LEAD#*"] } },
+    }));
     const intakeEnabled = new CfnParameter(this, "LeadIntakeEnabled", {
       type: "String", default: "false", allowedValues: ["false", "true"],
       description: "Enable public lead intake only after consent and retention policy approval.",
@@ -160,7 +165,7 @@ export class ApplicationStack extends Stack {
       createDefaultStage: false,
       corsPreflight: {
         allowOrigins: [webOrigin, ...(config.environment === "development" ? ["http://127.0.0.1:5173"] : [])],
-        allowMethods: [apigateway.CorsHttpMethod.GET, apigateway.CorsHttpMethod.POST],
+        allowMethods: [apigateway.CorsHttpMethod.GET, apigateway.CorsHttpMethod.POST, apigateway.CorsHttpMethod.PATCH],
         allowHeaders: ["authorization", "content-type", "idempotency-key"],
       },
     });
@@ -180,6 +185,9 @@ export class ApplicationStack extends Stack {
     });
     api.addRoutes({
       path: "/admin/leads", methods: [apigateway.HttpMethod.GET], integration, authorizer: jwtAuthorizer,
+    });
+    api.addRoutes({
+      path: "/admin/leads/{leadId}", methods: [apigateway.HttpMethod.PATCH], integration, authorizer: jwtAuthorizer,
     });
     api.addRoutes({ path: "/leads", methods: [apigateway.HttpMethod.POST], integration });
     if (zone && certificate && config.apiDomain) {

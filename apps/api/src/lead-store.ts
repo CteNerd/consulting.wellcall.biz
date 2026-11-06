@@ -1,15 +1,23 @@
-import { TransactionCanceledException } from "@aws-sdk/client-dynamodb";
+import { ConditionalCheckFailedException, TransactionCanceledException } from "@aws-sdk/client-dynamodb";
 import {
   DynamoDBDocumentClient,
   GetCommand,
   QueryCommand,
   TransactWriteCommand,
+  UpdateCommand,
   type TransactWriteCommandInput,
 } from "@aws-sdk/lib-dynamodb";
-import type { LeadPage, LeadReader, LeadRecord, LeadWriter, ReportingEvent, StoredLead } from "./leads.ts";
+import type { LeadPage, LeadReader, LeadRecord, LeadStatusWriter, LeadWriter, ReportingEvent, StoredLead } from "./leads.ts";
+import { isLeadStatus, type LeadFollowUp, type LeadStatusUpdate } from "../../../packages/domain/src/lead-follow-up.ts";
 
 type LeadCursor = { PK: string; SK: string; GSI1PK: string; GSI1SK: string };
 const leadIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export class LeadUpdateConflictError extends Error {
+  constructor() {
+    super("Lead changed or is no longer available");
+  }
+}
 
 export class InvalidLeadCursorError extends Error {
   constructor() {
@@ -69,7 +77,8 @@ export class DynamoLeadReader implements LeadReader {
       TableName: this.tableName,
       IndexName: "LeadListingIndex",
       KeyConditionExpression: "GSI1PK = :lead",
-      ExpressionAttributeValues: { ":lead": "LEAD" },
+      FilterExpression: "expiresAt > :now",
+      ExpressionAttributeValues: { ":lead": "LEAD", ":now": Math.floor(Date.now() / 1000) },
       ScanIndexForward: false,
       Limit: 25,
       ...(cursor === undefined ? {} : { ExclusiveStartKey: cursor }),
@@ -80,6 +89,47 @@ export class DynamoLeadReader implements LeadReader {
       leads,
       nextToken: lastKey === undefined ? null : encodeLeadCursor(lastKey),
     };
+  }
+}
+
+export class DynamoLeadStatusWriter implements LeadStatusWriter {
+  private readonly client: DynamoDBDocumentClient;
+  private readonly tableName: string;
+
+  constructor(client: DynamoDBDocumentClient, tableName: string) {
+    this.client = client;
+    this.tableName = tableName;
+  }
+
+  async updateStatus(
+    leadId: string, update: LeadStatusUpdate, actorSub: string, now: Date,
+  ): Promise<LeadFollowUp> {
+    try {
+      const result = await this.client.send(new UpdateCommand({
+        TableName: this.tableName,
+        Key: { PK: `LEAD#${leadId}`, SK: "METADATA" },
+        UpdateExpression: "SET #status = :status, #version = :nextVersion, updatedAt = :updatedAt, updatedBy = :actor",
+        ConditionExpression: "recordType = :lead AND expiresAt > :now AND "
+          + (update.expectedVersion === 0
+            ? "(#version = :expectedVersion OR attribute_not_exists(#version))"
+            : "#version = :expectedVersion"),
+        ExpressionAttributeNames: { "#status": "status", "#version": "version" },
+        ExpressionAttributeValues: {
+          ":lead": "LEAD", ":now": Math.floor(now.getTime() / 1000),
+          ":status": update.status, ":expectedVersion": update.expectedVersion,
+          ":nextVersion": update.expectedVersion + 1,
+          ":updatedAt": now.toISOString(), ":actor": actorSub,
+        },
+        ReturnValues: "UPDATED_NEW",
+      }));
+      if (!result.Attributes || !isLeadStatus(result.Attributes.status)) {
+        throw new Error("Updated lead response is missing");
+      }
+      return readFollowUp(result.Attributes);
+    } catch (error) {
+      if (error instanceof ConditionalCheckFailedException) throw new LeadUpdateConflictError();
+      throw error;
+    }
   }
 }
 
@@ -99,6 +149,7 @@ export function buildLeadTransaction(
             name: lead.name, email: lead.email, company: lead.company, message: lead.message,
             leadId: lead.leadId, consentPolicyVersion: lead.consentPolicyVersion,
             createdAt: lead.createdAt, consentedAt: lead.consentedAt, expiresAt: lead.expiresAt,
+            status: "NEW", version: 0,
           },
           ConditionExpression: "attribute_not_exists(PK)",
         },
@@ -130,6 +181,7 @@ export function buildLeadTransaction(
 
 function toLeadRecord(item: Record<string, unknown>): LeadRecord {
   return {
+    ...readFollowUp(item),
     leadId: recordString(item, "leadId"),
     name: recordString(item, "name"),
     email: recordString(item, "email"),
@@ -139,6 +191,15 @@ function toLeadRecord(item: Record<string, unknown>): LeadRecord {
     consentedAt: recordString(item, "consentedAt"),
     consentPolicyVersion: recordString(item, "consentPolicyVersion"),
   };
+}
+
+function readFollowUp(item: Record<string, unknown>): LeadFollowUp {
+  if (item.status === undefined && item.version === undefined) return { status: "NEW", version: 0 };
+  if (!isLeadStatus(item.status) || typeof item.version !== "number"
+    || !Number.isSafeInteger(item.version) || item.version < 0) {
+    throw new Error("Stored lead follow-up fields are invalid");
+  }
+  return { status: item.status, version: item.version };
 }
 
 function recordString(item: Record<string, unknown>, key: string): string {

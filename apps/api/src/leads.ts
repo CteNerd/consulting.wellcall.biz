@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { LeadFollowUp, LeadStatusUpdate } from "../../../packages/domain/src/lead-follow-up.ts";
 
 export type LeadSubmission = {
   idempotencyKey: string;
@@ -29,7 +30,7 @@ export type StoredLead = LeadSubmission & {
   expiresAt: number;
 };
 
-export type LeadRecord = {
+export type LeadRecord = LeadFollowUp & {
   leadId: string;
   name: string;
   email: string;
@@ -48,6 +49,10 @@ export type LeadWriter = {
 
 export type LeadReader = {
   listLatest(nextToken: string | undefined): Promise<LeadPage>;
+};
+
+export type LeadStatusWriter = {
+  updateStatus(leadId: string, update: LeadStatusUpdate, actorSub: string, now: Date): Promise<LeadFollowUp>;
 };
 
 export function isReportingEvent(value: unknown): value is ReportingEvent {

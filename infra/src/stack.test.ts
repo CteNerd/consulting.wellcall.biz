@@ -20,7 +20,7 @@ test("development foundation keeps intake closed, protects API access and provis
           ProjectionType: "INCLUDE",
           NonKeyAttributes: [
             "leadId", "name", "email", "company", "message", "createdAt",
-            "consentedAt", "consentPolicyVersion",
+            "consentedAt", "consentPolicyVersion", "status", "version", "expiresAt",
           ],
         },
       }),
@@ -43,6 +43,9 @@ test("development foundation keeps intake closed, protects API access and provis
   template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
     RouteKey: "GET /admin/leads", AuthorizationType: "JWT", AuthorizerId: Match.anyValue(),
   });
+  template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
+    RouteKey: "PATCH /admin/leads/{leadId}", AuthorizationType: "JWT", AuthorizerId: Match.anyValue(),
+  });
   template.hasResourceProperties("AWS::Cognito::UserPoolGroup", {
     GroupName: "ConsultingAdministrators",
   });
@@ -63,7 +66,7 @@ test("development foundation keeps intake closed, protects API access and provis
   template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
     RouteKey: "POST /leads", AuthorizationType: "NONE",
   });
-  template.resourceCountIs("AWS::ApiGatewayV2::Route", 4);
+  template.resourceCountIs("AWS::ApiGatewayV2::Route", 5);
   template.hasResourceProperties("AWS::ApiGatewayV2::Stage", {
     StageName: "$default",
     DefaultRouteSettings: { ThrottlingBurstLimit: 10, ThrottlingRateLimit: 5 },
@@ -72,7 +75,7 @@ test("development foundation keeps intake closed, protects API access and provis
     CorsConfiguration: Match.objectLike({
       AllowOrigins: Match.arrayWith(["http://127.0.0.1:5173"]),
       AllowHeaders: Match.arrayWith(["idempotency-key"]),
-      AllowMethods: Match.arrayWith(["POST"]),
+      AllowMethods: Match.arrayWith(["POST", "PATCH"]),
     }),
   });
   template.hasResourceProperties("AWS::Cognito::UserPool", {
@@ -84,6 +87,7 @@ test("development foundation keeps intake closed, protects API access and provis
   assert.match(policies, /dynamodb:UpdateItem/);
   assert.match(policies, /dynamodb:Query/);
   assert.match(policies, /index\/LeadListingIndex/);
+  assert.match(policies, /"ForAllValues:StringLike":\{"dynamodb:LeadingKeys":\["LEAD#\*"\]\}/);
   assert.match(policies, /events:PutEvents/);
   assert.match(policies, /"Action":"dynamodb:ListStreams","Effect":"Allow","Resource":"\*"/);
   assert.equal((policies.match(/"Resource":"\*"/g) ?? []).length, 1);

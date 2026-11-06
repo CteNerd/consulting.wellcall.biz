@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { createAdminAuth, readAdminAuthConfiguration } from "./admin-auth.ts";
+import { isLeadStatus, leadStatusLabels, type LeadFollowUp, type LeadStatus } from "../../../packages/domain/src/lead-follow-up.ts";
 
-type LeadRecord = {
+type LeadRecord = LeadFollowUp & {
   leadId: string;
   name: string;
   email: string;
@@ -30,6 +31,7 @@ export function AdminInbox() {
   const [pageIndex, setPageIndex] = useState(0);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const cursor = pageCursors[pageIndex];
 
@@ -64,7 +66,9 @@ export function AdminInbox() {
       signal: controller.signal,
     })
       .then(async (response) => {
+        if (controller.signal.aborted) return undefined;
         if (response.status === 401) {
+          setStatus("Your session expired. Sign in again.");
           setAccessToken(undefined);
           setPageCursors([undefined]);
           setPageIndex(0);
@@ -76,7 +80,7 @@ export function AdminInbox() {
         const body: unknown = await response.json();
         return parseLeadPage(body);
       })
-      .then(setPage)
+      .then((loaded) => { if (loaded && !controller.signal.aborted) setPage(loaded); })
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
           setStatus(error instanceof Error ? error.message : "The lead inbox could not be loaded.");
@@ -108,6 +112,45 @@ export function AdminInbox() {
     setPageIndex(pageIndex + 1);
   }
 
+  async function updateStatus(lead: LeadRecord, nextStatus: LeadStatus) {
+    if (!setup || !accessToken || saving) return;
+    setSaving(true);
+    setStatus("");
+    try {
+      const response = await fetch(new URL(`/admin/leads/${encodeURIComponent(lead.leadId)}`, setup.configuration.apiUrl), {
+        method: "PATCH",
+        headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({ status: nextStatus, expectedVersion: lead.version }),
+      });
+      if (response.status === 401) {
+        setAccessToken(undefined);
+        setPage(undefined);
+        throw new Error("Your session expired. Sign in again.");
+      }
+      if (response.status === 403) throw new Error("This account cannot update inquiries.");
+      if (response.status === 409) {
+        throw new Error("This inquiry changed or is no longer available. Refresh before trying again.");
+      }
+      if (!response.ok) throw new Error("The inquiry could not be updated. Refresh before retrying.");
+      const body: unknown = await response.json();
+      if (!isRecord(body)) throw new Error("The lead update returned an invalid response. Refresh the inbox.");
+      const saved = parseFollowUp(body);
+      if (saved.status !== nextStatus || saved.version !== lead.version + 1) {
+        throw new Error("The lead update returned an unexpected result. Refresh the inbox.");
+      }
+      setPage((current) => current ? {
+        ...current,
+        leads: current.leads.map((item) => item.leadId === lead.leadId ? { ...item, ...saved } : item),
+      } : undefined);
+      setStatus("Inquiry status saved.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "The inquiry could not be updated. Refresh before retrying.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <>
       <a className="skip" href="#admin-main">Skip to inbox</a>
@@ -130,14 +173,14 @@ export function AdminInbox() {
         ) : (
           <>
             <div className="admin-actions">
-              <button className="button" type="button" onClick={() => setRefreshVersion(refreshVersion + 1)} disabled={busy}>
+              <button className="button" type="button" onClick={() => setRefreshVersion(refreshVersion + 1)} disabled={busy || saving}>
                 Refresh
               </button>
               <button
                 className="button"
                 type="button"
                 onClick={() => setup.auth.signOut()}
-                disabled={busy}
+                disabled={busy || saving}
               >
                 Sign out
               </button>
@@ -145,14 +188,16 @@ export function AdminInbox() {
             {page && page.leads.length === 0 && <p>No inquiries on this page.</p>}
             {page && page.leads.length > 0 && (
               <div className="lead-list" aria-label="Inquiries">
-                {page.leads.map((lead) => <LeadCard key={lead.leadId} lead={lead} />)}
+                {page.leads.map((lead) => (
+                  <LeadCard key={`${lead.leadId}:${lead.version}`} lead={lead} disabled={busy || saving} onUpdate={updateStatus} />
+                ))}
               </div>
             )}
             <nav className="pagination" aria-label="Lead inbox pages">
               <button
                 className="button"
                 type="button"
-                disabled={busy || pageIndex === 0}
+                disabled={busy || saving || pageIndex === 0}
                 onClick={() => setPageIndex(pageIndex - 1)}
               >
                 Previous page
@@ -161,7 +206,7 @@ export function AdminInbox() {
               <button
                 className="button"
                 type="button"
-                disabled={busy || !page?.nextToken}
+                disabled={busy || saving || !page?.nextToken}
                 onClick={nextPage}
               >
                 Next page
@@ -177,7 +222,12 @@ export function AdminInbox() {
   );
 }
 
-function LeadCard({ lead }: { lead: LeadRecord }) {
+function LeadCard({ lead, disabled, onUpdate }: {
+  lead: LeadRecord;
+  disabled: boolean;
+  onUpdate: (lead: LeadRecord, status: LeadStatus) => Promise<void>;
+}) {
+  const [nextStatus, setNextStatus] = useState(lead.status);
   const createdDate = new Date(lead.createdAt);
   const dateLabel = Number.isFinite(createdDate.getTime())
     ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(createdDate)
@@ -190,7 +240,20 @@ function LeadCard({ lead }: { lead: LeadRecord }) {
       </div>
       <p><strong>Email:</strong> {lead.email}</p>
       {lead.company && <p><strong>Company:</strong> {lead.company}</p>}
+      <p><strong>Status:</strong> {leadStatusLabels[lead.status]}</p>
       <p className="lead-message">{lead.message}</p>
+      <form className="lead-follow-up" onSubmit={(event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        void onUpdate(lead, nextStatus);
+      }}>
+        <label htmlFor={`status-${lead.leadId}`}>Follow-up status for {lead.name}</label>
+        <select id={`status-${lead.leadId}`} value={nextStatus} disabled={disabled} onChange={(event) => {
+          if (isLeadStatus(event.target.value)) setNextStatus(event.target.value);
+        }}>
+          {Object.entries(leadStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+        <button className="button" type="submit" disabled={disabled || nextStatus === lead.status}>Save status</button>
+      </form>
       <p className="consent-detail">
         Consent recorded {lead.consentedAt} (policy {lead.consentPolicyVersion})
       </p>
@@ -214,6 +277,14 @@ function parseLeadPage(value: unknown): LeadPage {
   };
 }
 
+function parseFollowUp(value: Record<string, unknown>): LeadFollowUp {
+  if (!isLeadStatus(value.status) || typeof value.version !== "number"
+    || !Number.isSafeInteger(value.version) || value.version < 0) {
+    throw new Error("The lead inbox returned invalid follow-up details.");
+  }
+  return { status: value.status, version: value.version };
+}
+
 function parseLeadRecord(value: unknown): LeadRecord {
   const fields = [
     "leadId", "name", "email", "company", "message", "createdAt", "consentedAt", "consentPolicyVersion",
@@ -222,6 +293,7 @@ function parseLeadRecord(value: unknown): LeadRecord {
     throw new Error("The lead inbox returned an invalid response.");
   }
   return {
+    ...parseFollowUp(value),
     leadId: recordString(value, "leadId"),
     name: recordString(value, "name"),
     email: recordString(value, "email"),

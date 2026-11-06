@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createApiHandler, handler, type Request } from "./handler.ts";
-import { IdempotencyConflictError, InvalidLeadCursorError } from "./lead-store.ts";
+import { IdempotencyConflictError, InvalidLeadCursorError, LeadUpdateConflictError } from "./lead-store.ts";
 import type { LeadReader, LeadWriter } from "./leads.ts";
 
 function request(path: string, method = "GET", body?: unknown): Request {
@@ -136,6 +136,7 @@ test("lead inbox requires the verified administrator group and returns a bounded
         return {
           leads: [{
             leadId: "lead-1", name: "Riley Example", email: "person@example.com",
+            status: "NEW", version: 0,
             company: "", message: "Project inquiry", createdAt: "2026-11-05T16:00:00.000Z",
             consentedAt: "2026-11-05T16:00:00.000Z", consentPolicyVersion: "2026-01",
           }],
@@ -158,6 +159,7 @@ test("lead inbox requires the verified administrator group and returns a bounded
   assert.deepEqual(JSON.parse(result.body!), {
     leads: [{
       leadId: "lead-1", name: "Riley Example", email: "person@example.com",
+      status: "NEW", version: 0,
       company: "", message: "Project inquiry", createdAt: "2026-11-05T16:00:00.000Z",
       consentedAt: "2026-11-05T16:00:00.000Z", consentPolicyVersion: "2026-01",
     }],
@@ -179,6 +181,74 @@ test("lead inbox rejects invalid cursors without falling back to an unbounded qu
   };
   assert.equal((await api(event)).statusCode, 400);
 });
+
+test("status updates require verified admin claims and record the trusted actor", async () => {
+  const writes: unknown[] = [];
+  const api = createApiHandler({
+    leadWriter: { create: async () => "created" },
+    leadIntake: { enabled: false, consentPolicyVersion: "", retentionDays: 0 },
+    leadStatusWriter: { updateStatus: async (...args) => {
+      writes.push(args);
+      return { status: "CONTACTED", version: 1 };
+    } },
+    now: () => new Date("2026-11-05T16:00:00.000Z"),
+  });
+  const event = statusRequest({ status: "CONTACTED", expectedVersion: 0 });
+  delete event.requestContext.authorizer;
+  event.headers.authorization = "unverified";
+  assert.equal((await api(event)).statusCode, 401);
+  event.requestContext.authorizer = { jwt: { claims: { sub: "member", "cognito:groups": "NotConsultingAdministrators" } } };
+  assert.equal((await api(event)).statusCode, 403);
+  assert.equal(writes.length, 0);
+  event.requestContext.authorizer = { jwt: { claims: { sub: "admin-1", "cognito:groups": ["ConsultingAdministrators"] } } };
+  const result = await api(event);
+  assert.equal(result.statusCode, 200);
+  assert.deepEqual(JSON.parse(result.body!), { status: "CONTACTED", version: 1 });
+  assert.deepEqual(writes[0], [
+    "b9de9897-5f48-4a63-a872-1d1b53bd64a5", { status: "CONTACTED", expectedVersion: 0 },
+    "admin-1", new Date("2026-11-05T16:00:00.000Z"),
+  ]);
+});
+
+test("status update validation rejects arbitrary attributes, invalid versions and oversized payloads", async () => {
+  const api = createApiHandler({
+    leadWriter: { create: async () => "created" },
+    leadIntake: { enabled: false, consentPolicyVersion: "", retentionDays: 0 },
+    leadStatusWriter: { updateStatus: async () => { assert.fail("invalid input cannot write"); } },
+  });
+  for (const body of [
+    { status: "INVALID", expectedVersion: 0 },
+    { status: "NEW", expectedVersion: -1 },
+    { status: "NEW", expectedVersion: 1.5 },
+    { status: "NEW", expectedVersion: Number.MAX_SAFE_INTEGER },
+    { status: "NEW", expectedVersion: 0, updatedBy: "forged" },
+    { status: "NEW", expectedVersion: 0, expiresAt: 9999999999 },
+  ]) assert.equal((await api(statusRequest(body))).statusCode, 400);
+  const large = statusRequest({});
+  large.body = "x".repeat(1500);
+  assert.equal((await api(large)).statusCode, 413);
+  const badId = statusRequest({ status: "NEW", expectedVersion: 0 });
+  badId.rawPath = "/admin/leads/OUTBOX";
+  assert.equal((await api(badId)).statusCode, 400);
+});
+
+test("concurrent or expired lead updates return conflict instead of reporting success", async () => {
+  const api = createApiHandler({
+    leadWriter: { create: async () => "created" },
+    leadIntake: { enabled: false, consentPolicyVersion: "", retentionDays: 0 },
+    leadStatusWriter: { updateStatus: async () => { throw new LeadUpdateConflictError(); } },
+  });
+  const result = await api(statusRequest({ status: "CLOSED", expectedVersion: 0 }));
+  assert.equal(result.statusCode, 409);
+  assert.match(JSON.parse(result.body!).error, /Refresh/);
+});
+
+function statusRequest(body: unknown): Request {
+  const event = request("/admin/leads/b9de9897-5f48-4a63-a872-1d1b53bd64a5", "PATCH", body);
+  event.headers["content-type"] = "application/json";
+  event.requestContext.authorizer = { jwt: { claims: { sub: "admin-1", "cognito:groups": ["ConsultingAdministrators"] } } };
+  return event;
+}
 
 function validSubmission() {
   return {

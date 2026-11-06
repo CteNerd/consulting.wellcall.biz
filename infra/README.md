@@ -29,9 +29,10 @@ Missing or invalid target context fails. `us-east-1` is explicit.
   no hosted login domain or initial users are provisioned.
 - Node 24 API and outbox-publisher Lambdas with separate scoped roles and
   7/30-day dev/prod logs.
-- HTTP API: public `GET /health` and `POST /leads`, JWT-protected `GET /me` and
-  `GET /admin/leads`, exact web-origin CORS and bounded stage throttling. The
-  lead inbox also requires the `ConsultingAdministrators` Cognito group in the
+- HTTP API: public `GET /health` and `POST /leads`, JWT-protected `GET /me`,
+  `GET /admin/leads` and `PATCH /admin/leads/{leadId}`, exact web-origin CORS and
+  bounded stage throttling. The lead inbox also requires the
+  `ConsultingAdministrators` Cognito group in the
   verified token; its reader can query only the PII-projected `LeadListingIndex`
   and returns at most 25 records per page. The group has no members by default.
   Lead intake defaults off;
@@ -58,6 +59,24 @@ The inbox UI stays unavailable unless all four HTTPS build settings are present:
 `VITE_ADMIN_CLIENT_ID` and `VITE_ADMIN_USER_POOL_ID`. It uses authorization-code
 PKCE, keeps access tokens in memory, and sends them only to the API. The client
 is a public OAuth client; never add a client secret to the web build.
+
+Admins can mark inquiries New, Contacted, Qualified or Closed, including
+reopening a closed inquiry. These are follow-up labels, not authorization,
+project creation, contact automation or finance actions. `PATCH` accepts only
+`status` and `expectedVersion`; DynamoDB checks the displayed version and
+unexpired lead record atomically. Conflicts return 409 and require an explicit
+refresh, not an automatic overwrite or retry. The latest actor and update time
+are recorded on the lead without changing its TTL; no PII-bearing event is
+published. The API's UpdateItem grant is restricted to `LEAD#` partition keys.
+Older leads without follow-up fields read as New/version 0.
+
+The listing index is eventually consistent, so a refresh can briefly show a
+previous status. Successful saves update the displayed card from the confirmed
+write result. Expired leads are excluded from listing even while DynamoDB TTL
+deletion is pending and cannot be updated. An expiry-filtered page may be empty
+while still containing a next-page token; continue pagination to review older
+unexpired records. This is read/update expiry enforcement, not verified
+physical deletion or a complete retention process.
 
 This is not yet a launch-ready intake operation: no hosted Cognito login domain,
 lead notification, CAPTCHA/WAF control, owner assignment or live event-delivery

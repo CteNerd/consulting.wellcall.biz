@@ -24,9 +24,12 @@ both environment synths. It does not certify the legacy frontend or deploy AWS.
 Node 24 is for the new foundation, not a claim of CRA compatibility.
 The new preview is not feature parity or an approved public launch. A lead
 inquiry form and atomic API/outbox path are implemented but disabled by default;
-enabling them requires approved consent and retention settings, an admin CRM
-and operational notification/recovery verification. No AWS resources have been
-deployed. Policy tests do not replace server-loaded assignment checks when
+the private admin inbox supports paginated lead review and version-checked
+follow-up statuses (New, Contacted, Qualified and Closed). Admin access requires
+the verified Cognito `ConsultingAdministrators` group and configured PKCE login.
+Enabling intake still requires approved consent and retention settings,
+hosted login configuration and operational notification/recovery verification.
+No AWS resources have been deployed. Policy tests do not replace server-loaded assignment checks when
 business CRUD endpoints are introduced. See the
 [infrastructure/release runbook](infra/README.md).
 
