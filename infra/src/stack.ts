@@ -231,7 +231,7 @@ export class ApplicationStack extends Stack {
     });
     const integration = new HttpLambdaIntegration("ApiIntegration", handler);
     api.addRoutes({ path: "/health", methods: [apigateway.HttpMethod.GET], integration });
-    const jwtAuthorizer = new HttpJwtAuthorizer("Cognito", `https://${pool.userPoolProviderUrl}`, {
+    const jwtAuthorizer = new HttpJwtAuthorizer("Cognito", pool.userPoolProviderUrl, {
       jwtAudience: [client.userPoolClientId],
     });
     api.addRoutes({
