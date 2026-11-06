@@ -40,6 +40,9 @@ browser client secrets are needed. It publishes only the modern preview to
 the stack's generated CloudFront URL and does not deploy infrastructure or
 open public intake. The runbook documents activation and remaining live checks.
 
+See the [portfolio development handoff](docs/development-handoff-2026-11-06.md)
+for completed work, validation evidence, release prerequisites and the next-session plan.
+
 The CRA dependency is patched from 4.0.1 to 4.0.3 because 4.0.1 declares only
 TypeScript 3 support despite this repo already using TypeScript 4.1. The patch
 allows npm to resolve the workspace without force/legacy-peer overrides. The
