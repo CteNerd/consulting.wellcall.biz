@@ -5,32 +5,173 @@ Scope: Consulting, Community, and the two existing personal/Founder worktrees.
 
 ## Executive status
 
-Meaningful product features are implemented and pushed for Consulting.
-Community has tested adult-approval domain logic, but not an operational
-application flow. This final increment prepares manual development web publishers
-for both producers and a development-only Cognito login domain for Consulting.
+**Both producer development previews are now deployed and verified.** Their
+real publisher roles exist, both required GitHub development variables are
+configured, and the manual OIDC publishing workflows passed. Founder governance,
+release planning, API/projections and portfolio reporting/eventing are also
+provisioned in development.
 
-**The original development/release increment did not create AWS resources,
-deploy an application, change DNS, configure GitHub variables/secrets,
-open enrollment, or enable public
-lead intake.** Neither producer development stack exists in the default AWS
-profile's account as of the read-only check below. Merging runs CI; it does not
-automatically create those stacks or publish a preview.
+Consulting has gated lead intake, a protected admin inbox and versioned
+follow-up statuses. Community has tested adult-approval domain rules, but still
+needs an operational application/review flow. The Founder dashboard and
+execution-permission refinements remain uncommitted in their original worktrees.
 
-The new publishing workflows become usable only after merge, reviewed initial
-infrastructure provisioning, and two development environment variables per repo.
-The original increment preceded PR creation. The follow-up below records newer
-PR, configuration and review-fix work; those updates supersede the original
-snapshot where noted.
+**Public intake, enrollment and Founder owner access remain closed.** No initial
+Cognito users, production resources, custom domains or DNS changes were created.
+Merging runs CI; publishing a changed producer preview still requires manually
+dispatching `publish-development.yml` on `main`.
 
-## PR review follow-up (2026-11-06)
+The current activation sections below supersede the explicitly historical
+source-only snapshots later in this report. Feature development can resume
+without repeating this initial infrastructure bootstrap.
+
+## Verified development activation
+
+Account: `425061472162`. Region: `us-east-1`.
+
+| Application | Live preview | Successful publishing run |
+| --- | --- | --- |
+| Consulting | [Development site](https://d38dz368foep1n.cloudfront.net/) / [admin entry](https://d38dz368foep1n.cloudfront.net/?admin) | [42248813337](https://github.com/CteNerd/consulting.wellcall.biz/actions/runs/42248813337) |
+| Community | [Development site](https://d3rh9e476mucty.cloudfront.net/) | [42247345620](https://github.com/CteNerd/community.wellcall.biz/actions/runs/42247345620) |
+
+Both GitHub `development` environments retain the `main` deployment branch
+policy. These exact values were set and read back:
+
+- Both repositories: `AWS_ACCOUNT_ID=425061472162`.
+- Consulting `AWS_WEB_PUBLISH_ROLE_ARN`:
+  `arn:aws:iam::425061472162:role/rct/consulting/development/rct-consulting-development-web-publish`.
+- Community `AWS_WEB_PUBLISH_ROLE_ARN`:
+  `arn:aws:iam::425061472162:role/rct/dotcom/development/rct-dotcom-development-web-publish`.
+
+The publisher ARNs came from the completed stacks' `WebPublishRoleArn` outputs
+and were checked against the actual IAM roles, boundaries and exact
+repository/environment OIDC trust. No AWS access-key secrets were added.
+Do not substitute an IAM user, planner or CloudFormation execution role.
+
+### AWS resources created
+
+All eight stacks reached actual `CREATE_COMPLETE`, not merely prepared
+change-set status:
+
+| Stack | Purpose / important output |
+| --- | --- |
+| `rct-dotcom-development-release-bootstrap` | Private assets bucket `rct-dotcom-development-release-assets-425061472162-us-east-1` |
+| `rct-consulting-development-release-bootstrap` | Private assets bucket `rct-consulting-development-assets-425061472162-us-east-1` |
+| `rct-governance-development` | Exact-repository planners, producer compatibility boundaries and governance-owned Founder API/reporting runtime roles |
+| `rct-founder-development-release-planning` | Private assets bucket `rct-founder-development-release-assets-425061472162-us-east-1`, release planner and existing singular execution role |
+| `rct-founder-development-foundation` | Cognito, API and projection table; `FounderOwnerSubject=disabled` |
+| `rct-portfolio-development-eventing` | Portfolio bus/discovery, six queues, reporting worker, two mappings and seven alarms |
+| `rct-dotcom-development-foundation` | Private web origin/CloudFront, Cognito, API/core table and web publisher |
+| `rct-consulting-development-foundation` | Cognito hosted login/admin group, API/core table/outbox, private web origin/CloudFront and web publisher |
+
+Consulting's explicit parameters are `LeadIntakeEnabled=false`, blank consent
+version and `LeadRetentionDays=0`.
+
+The portfolio bus and SSM discovery value are both:
+`arn:aws:events:us-east-1:425061472162:event-bus/rct-portfolio-development`.
+Discovery parameter: `/rct/development/portfolio/event-bus-arn`.
+
+Useful real Founder role outputs:
+
+- API runtime:
+  `arn:aws:iam::425061472162:role/rct/founder/development/runtime/rct-founder-development-api`.
+- Reporting runtime:
+  `arn:aws:iam::425061472162:role/rct/founder/development/runtime/rct-founder-development-reporting`.
+- Release planner:
+  `arn:aws:iam::425061472162:role/rct-release/founder/development/rct-founder-development-release-plan`.
+- Singular execution role:
+  `arn:aws:iam::425061472162:role/rct-release/founder/development/rct-founder-development-execute`.
+
+The last role is the committed, deliberately incomplete execution permission
+model, not the pending two-role refinement. Its existence does not certify
+infrastructure execution or activate an infrastructure release workflow.
+
+### Live verification and limits
+
+- Both publishers passed lint, workspace checks, contract pins, modern audit,
+  actual OIDC assumption, destination ownership/private-origin checks, API
+  readiness, build/upload, invalidation and served HTML/every-asset byte checks.
+- Both browser landing pages loaded. At a 390-pixel viewport neither had
+  horizontal overflow or an intake/enrollment form. The Consulting admin entry
+  rendered the configured sign-in button and exact administrator-group gate.
+- All three APIs returned their expected application identity at `/health`.
+  Anonymous `/me` requests returned 401; Consulting `/admin/leads` and Founder
+  `/metrics?month=2026-11` also returned 401.
+- Consulting `POST /leads` with an empty JSON body returned 503 while intake was
+  closed, before any record creation. Both direct anonymous S3 entry-point
+  requests returned 403.
+- Reporting Lambda is `Active` with `LastUpdateStatus=Successful` and a
+  234,974-byte uploaded ZIP. Both SQS mappings are `Enabled` with
+  `ReportBatchItemFailures`.
+- Consulting API: `https://7we8owuq3c.execute-api.us-east-1.amazonaws.com`.
+  Community API: `https://6bqypilsi0.execute-api.us-east-1.amazonaws.com`.
+  Founder API: `https://jjvn8mwbs5.execute-api.us-east-1.amazonaws.com`.
+- Consulting hosted-login domain:
+  `https://rct-consulting-development-425061472162.auth.us-east-1.amazoncognito.com`.
+  No initial admin user, MFA enrollment or authenticated inbox transaction was
+  exercised. No synthetic business events were injected into live reporting.
+
+Initial provisioning used the explicitly approved default-profile
+administrative bootstrap operator and caller-credential CloudFormation change
+sets, with no CloudFormation execution `RoleARN`. Dedicated private asset
+buckets and supported `CliCredentialsStackSynthesizer` orchestration avoided
+the existing shared `CDKToolkit` bucket/administrator execution role. Shared
+bootstrap policies/trust were not modified or assumed. Scoped infrastructure
+execution/service-context proofs remain separate unfinished work.
+
+### Budget and deployment lessons
+
+`rct-portfolio-monthly` is configured at $65 USD/month with the exact
+`Portfolio=RCT` cost filter, actual percentage thresholds 50/80/100 and forecast
+percentage threshold 100, and four verified owner-supplied email subscriptions.
+AWS reports budget health `HEALTHY`. **The Portfolio cost-allocation tag is not yet listed by Cost
+Explorer, so activation and actual cost attribution are unverified.** Check its
+availability, activate that exact tag when available, then verify coverage.
+Notification receipt is not verified. This is an alerting budget, not a hard
+spending cap. The seven operational alarms have no notification actions.
+
+Three deployment problems were resolved using real AWS evidence:
+
+1. The initial Consulting assets name exceeded S3's 63-character limit.
+   Its unexecuted invalid plan was replaced with the shorter name above.
+2. API Gateway rejected the Community JWT issuer. CloudTrail showed
+   `https://https://...`: Cognito `ProviderURL` already includes HTTPS.
+   All three repositories now use it directly with exact template assertions.
+   The failed Community stack record was removed; its retained bucket was
+   verified owned and empty, including versions/delete markers, then deleted.
+3. A foundation-selected Founder assembly skipped reporting bundling and
+   incorrectly packaged the source worktree. Lambda rejected its oversized
+   archive and eventing rolled back. A fresh `cdk synth '*'` using the pinned
+   repository CLI bundled every stack. The reporting asset was verified to
+   contain only a 796,118-byte `index.js`; the corrected recreation succeeded.
+   The single unusable uploaded archive version and rolled-back stack record
+   were removed. Do not deploy unselected-stack ZIP assets from a partial synth.
+
+Session bootstrap scripts, complete assemblies and isolated committed Founder
+source remain in this Copilot session's `files/` directory for audit/handoff.
+Use `founder-development-complete-assembly`, not the earlier partial assembly,
+for eventing evidence. The temporary `node_modules` symlink was removed; restore
+appropriate workspace dependencies before resynthesizing isolated source.
+
+## Merged PR and review follow-up (2026-11-06)
 
 - [Consulting PR #5](https://github.com/CteNerd/consulting.wellcall.biz/pull/5)
   and [Community PR #5](https://github.com/CteNerd/community.wellcall.biz/pull/5)
-  now target `main`, with Copilot review requested.
-- `AWS_ACCOUNT_ID` has been configured and read back in both GitHub development
-  environments. `AWS_WEB_PUBLISH_ROLE_ARN` remains unset: both producer stacks
-  were still absent at the subsequent AWS check. Merge does not provision them.
+  are merged; their main CI runs passed.
+- The deployment issuer fixes are also merged:
+  [Consulting #6](https://github.com/CteNerd/consulting.wellcall.biz/pull/6),
+  [Community #6](https://github.com/CteNerd/community.wellcall.biz/pull/6), and
+  [Founder #9](https://github.com/CteNerd/roddy.tomlin.life/pull/9).
+  Copilot reviewed each with no unresolved findings; PR and main CI passed.
+  Normal server-side squash merges produced verified GitHub-signed commits,
+  without changing branch rules or using administrator bypass.
+- Reviewed deployed source trees match signed main commits:
+  Consulting `17df0369adf9450940491fba7c745b4e5469531c`,
+  Community `d992dc61dcac26cab7f79e9960b145febbe89a75`,
+  Founder `40e38a4892e4b7daae5b3c6c26ae34d94f145aa5`.
+  Main CI evidence: [Consulting](https://github.com/CteNerd/consulting.wellcall.biz/actions/runs/42246534679),
+  [Community](https://github.com/CteNerd/community.wellcall.biz/actions/runs/42246531081),
+  [Founder](https://github.com/CteNerd/roddy.tomlin.life/actions/runs/42246475395).
 - Four Consulting findings are fixed in source: scheduled outbox validation,
   transaction-only `PutItem` permissions for the three record prefixes,
   exact producer source/detail-type `PutEvents` permissions, and atomic receipt
@@ -43,10 +184,11 @@ snapshot where noted.
 - Review-fix validation: Consulting API/infra type checks and 32 tests passed;
   Community infra type checks and 10 tests passed. Both linters, all four offline
   synths, workflow YAML and embedded Bash syntax checks passed. These remain
-  source/CLI checks, not deployed IAM, DynamoDB or publishing verification.
-- Founder work remains uncommitted and excluded. Separate reviewed PRs are
-  still needed for its execution-permission and dashboard slices after current
-  validation and careful integration of overlapping documentation changes.
+  source/CLI checks; the newer live publishing evidence is recorded above.
+- Pending Founder feature work remains uncommitted and excluded. Separate
+  reviewed PRs are still needed for its execution-permission and dashboard
+  slices after current validation and careful integration of overlapping
+  documentation changes.
 
 ## Repository and branch map
 
@@ -54,17 +196,22 @@ Paths are relative to the sibling repositories' parent directory.
 
 | Repository/worktree | Branch | State at handoff |
 | --- | --- | --- |
-| `consulting.wellcall.biz/` | `feat/consulting-lead-intake` | Product and development-release commits pushed; this report lives on the same branch. |
-| `community.wellcall.biz/` | `feat/community-adult-mentorship` | Adult approval and development-release commits pushed. |
+| `consulting.wellcall.biz/` | `docs/development-activation-handoff` | Report-only follow-up from merged main; deployed features are already merged. |
+| `community.wellcall.biz/` | `fix/cognito-issuer-url` | Issuer fix is merged; branch tree matches remote main. |
 | `roddy.tomlin.life/` | `feat/founder-execution-permissions` | Existing six-file uncommitted IAM/eventing preparation preserved, not edited or committed here. |
 | `roddy.tomlin.life-founder-dashboard/` | `feat/founder-dashboard` | Existing uncommitted dashboard/build/auth changes preserved, not edited or committed here. |
 
-Both Founder worktrees have committed baseline `9fda38a`, the PR #8 merge.
+Both original Founder worktrees still have committed baseline `9fda38a`, the PR #8 merge.
+Remote Founder main is now `40e38a4`; the isolated issuer-fix source tree matches
+that merge. Deployed governance/release/eventing retain the committed PR #8
+model, with only the shared issuer fix added. Pending fixed rule/alarm names
+and split execution roles were not deployed; their future live changes require
+explicit migration/replacement review against the now-existing stacks.
 Do not assume the Founder work is saved in commits merely because the producer
 branches were pushed. Do not reset, clean, overwrite, or consolidate those
 worktrees without first inspecting and preserving their changes.
 
-### Pushed implementation commits
+### Original pushed implementation commits
 
 Consulting:
 
@@ -84,11 +231,12 @@ Community:
 - `6f20bbf`: manual development web publisher, scoped OIDC role/boundary,
   release validation and runbooks.
 
-At inspection, neither feature branch had an open PR. Their commits are unsigned
+At the original pre-PR inspection, neither feature branch had an open PR. Their commits are unsigned
 and both producer `main` branches require signed commits. The owner should
 confirm a permitted, verified merge strategy in GitHub, such as an owner-operated
 squash merge if offered. Do not force-push/rewrite branches or weaken signature
-requirements without approval. Local test results below are not GitHub PR checks.
+requirements without approval. The verified merges and hosted CI above supersede
+that original readiness gap.
 
 ## Completed product work
 
@@ -144,7 +292,7 @@ Relevant source:
 - Youth enrollment, guardian consent, safeguarding and verified screening
   processes are still prerequisites, not implemented capabilities.
 
-### Personal / Founder: existing work, not changed here
+### Personal / Founder: pending feature work
 
 The earlier dashboard slice in the separate worktree includes a standalone
 Founder UI, PKCE login, authenticated month-specific aggregate reporting,
@@ -218,9 +366,10 @@ The two publishers remain independently owned repository implementations.
 They support generated CloudFront and API Gateway URLs only; custom-domain
 activation requires a reviewed extension and separate DNS approval.
 
-## Read-only environment findings
+## Historical read-only environment findings (before activation)
 
-Checked on 2026-11-06:
+Checked before PR creation/provisioning on 2026-11-06; superseded by the verified
+activation above:
 
 - Default AWS profile successfully authenticated through STS.
 - Existing GitHub OIDC provider includes `sts.amazonaws.com`.
@@ -235,7 +384,7 @@ write, workflow dispatch, DNS change, or infrastructure deployment was performed
 Infrastructure create permissions and service-provided contexts were not
 certified by these read-only findings.
 
-## Exact variables and secrets the owner needs
+## Release configuration reference (now configured)
 
 In **each producer repository**:
 Settings > Environments > development > Environment variables.
@@ -257,7 +406,7 @@ active identity until the reviewed stack has been created. Follow
 Neither workflow reads `AWS_DEPLOY_ROLE_ARN`; infrastructure deployment is a
 separate task.
 
-## Verification performed for this final increment
+## Original source-only verification (before activation)
 
 | Check | Consulting | Community |
 | --- | --- | --- |
@@ -282,11 +431,9 @@ synthetic status-save interaction. Auth/data were mocked for that interaction;
 it was not a live Cognito or DynamoDB test. Temporary preview servers and mocks
 were removed. Shared local browser tabs are not evidence of public hosting.
 
-Not verified:
+Still not verified after activation:
 
-- Actual GitHub workflow execution or PR CI on these branches.
-- Assumption of deployed publisher roles and actual permission enforcement.
-- Live CloudFront publishing, hosted login/MFA and authenticated API access.
+- Hosted login/MFA and authenticated API access.
 - Real lead concurrency/expiry/TTL deletion and notification/recovery behavior.
 - End-to-end EventBridge-to-Founder delivery or outage replay.
 - Producer DynamoDB Local integration: Docker was not running and Java was
@@ -303,31 +450,24 @@ remediated here. Do not run forced audit fixes or certify the legacy CRA graph.
 
 ## Remaining work, in recommended order
 
-### 1. PR review and merge producer source
+### 1. Resume feature development
 
-- Open separate PRs from the two feature branches to each repo's `main`.
-- Run required CI and Copilot review; address linked findings without mixing
-  unrelated Founder changes.
-- Confirm signature/merge requirements and resolve review conversations.
-- Do not describe this as a production release or an activated pipeline.
+- Do not repeat producer PR creation, initial foundation/eventing bootstrap or
+  publisher variable setup: those are complete.
+- Preserve and validate the existing Founder dashboard/execution slices,
+  integrate overlapping files deliberately, and create their separate PRs.
+- Continue Community's gated adult application/review flow and Consulting's
+  operational features below without inventing policy approvals.
+- After merging future web changes, manually dispatch the corresponding
+  development publisher and verify its result. Production is not activated.
 
-### 2. Establish a real development preview
+### 2. Exercise the secure Consulting admin pilot
 
-- Review the complete CDK templates, cost/budget notifications, ownership,
-  bootstrap, CloudFormation execution and pass-role boundaries.
-- Provision the development foundation stacks through authorized, reviewed
-  infrastructure access. Do not grant the web publisher infrastructure access
-  or borrow/widen the shared administrator bootstrap role.
-- Consulting needs the portfolio EventBridge bus and its SSM discovery ARN
-  provisioned first, or a separately reviewed development-only eventing plan.
-  A web publisher cannot supply that dependency.
-- Configure the two environment variables from verified identity/stack outputs.
-- Confirm exact development environment/branch protections and OIDC role trust.
-- Dispatch the new workflow on `main`; verify its real checks and preview URL.
 - Provision a Consulting admin account/group membership through an authorized
   operator. Exercise MFA, PKCE, anonymous denial and authenticated inbox access.
-- Browser-test the deployed entry point, assets, navigation, admin empty/error
-  states and refresh behavior. Production and DNS remain separate approvals.
+- Browser-test authenticated inbox empty/error/status-save states and refresh
+  behavior against the live API. Initial landing/admin-gate and asset checks are
+  already complete. Production and DNS remain separate approvals.
 
 ### 3. Finish the Consulting intake operation
 
@@ -359,10 +499,11 @@ remediated here. Do not run forced audit fixes or certify the legacy CRA graph.
   after current checks/builds and release-output validation.
 - Plan their integration order; shared runbooks/status files need careful merge.
 - Finish reviewed execution permissions and live service-context proofs.
-- Configure the Founder owner subject, login, hosting/routing and API.
+- Configure the approved Founder owner subject and dashboard login/hosting/routing
+  against the existing API; do not repeat its initial provisioning.
 - Verify aggregate-only monthly reports with real producer delivery, replay and
-  recovery. Existing manual profile publishing on committed `main` does not
-  activate the Founder runtime.
+  recovery. The existing manual profile publisher does not publish the Founder
+  dashboard or configure its owner-access gate.
 
 ### 6. Production readiness is a later gate
 
@@ -375,8 +516,12 @@ production by changing an environment variable or reusing development grants.
 
 > Read `consulting.wellcall.biz/docs/development-handoff-2026-11-06.md` and both
 > producer infrastructure runbooks. Inspect all branch/worktree states before
-> editing, preserve the uncommitted Founder work, and start with PR readiness
-> and the reviewed development-preview bootstrap. Keep intake/enrollment closed,
+> editing and preserve the uncommitted Founder work. Producer development
+> previews, real publisher ARNs/variables and the initial shared development
+> foundations are already deployed and verified; do not redo that bootstrap.
+> Resume the pending Founder feature slices and remaining Community/Consulting
+> product work, reviewing changes against the live stacks before infrastructure
+> updates. Keep intake/enrollment and Founder owner access closed,
 > use OIDC rather than stored AWS keys, and distinguish source-tested preparation
 > from deployed, verified behavior. Then resume the remaining product work in
 > the priority order above.
