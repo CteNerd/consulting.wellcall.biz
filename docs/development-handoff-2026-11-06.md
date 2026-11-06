@@ -10,15 +10,43 @@ Community has tested adult-approval domain logic, but not an operational
 application flow. This final increment prepares manual development web publishers
 for both producers and a development-only Cognito login domain for Consulting.
 
-**Nothing in this session created AWS resources, deployed an application, changed
-DNS, configured GitHub variables/secrets, opened enrollment, or enabled public
+**The original development/release increment did not create AWS resources,
+deploy an application, change DNS, configure GitHub variables/secrets,
+open enrollment, or enable public
 lead intake.** Neither producer development stack exists in the default AWS
 profile's account as of the read-only check below. Merging runs CI; it does not
 automatically create those stacks or publish a preview.
 
 The new publishing workflows become usable only after merge, reviewed initial
 infrastructure provisioning, and two development environment variables per repo.
-PR creation is the next step; no PR was created by this increment.
+The original increment preceded PR creation. The follow-up below records newer
+PR, configuration and review-fix work; those updates supersede the original
+snapshot where noted.
+
+## PR review follow-up (2026-11-06)
+
+- [Consulting PR #5](https://github.com/CteNerd/consulting.wellcall.biz/pull/5)
+  and [Community PR #5](https://github.com/CteNerd/community.wellcall.biz/pull/5)
+  now target `main`, with Copilot review requested.
+- `AWS_ACCOUNT_ID` has been configured and read back in both GitHub development
+  environments. `AWS_WEB_PUBLISH_ROLE_ARN` remains unset: both producer stacks
+  were still absent at the subsequent AWS check. Merge does not provision them.
+- Four Consulting findings are fixed in source: scheduled outbox validation,
+  transaction-only `PutItem` permissions for the three record prefixes,
+  exact producer source/detail-type `PutEvents` permissions, and atomic receipt
+  replacement/recovery using the same 24-hour expiry cutoff.
+- The Community private-origin finding is fixed in both publishers because the
+  same preflight was copied into Consulting. Before upload, all four S3 public
+  access blocks must be enabled and policy status must explicitly be non-public.
+  Only bucket-scoped read permissions were added to each publisher's matching
+  identity policy/permissions boundary.
+- Review-fix validation: Consulting API/infra type checks and 32 tests passed;
+  Community infra type checks and 10 tests passed. Both linters, all four offline
+  synths, workflow YAML and embedded Bash syntax checks passed. These remain
+  source/CLI checks, not deployed IAM, DynamoDB or publishing verification.
+- Founder work remains uncommitted and excluded. Separate reviewed PRs are
+  still needed for its execution-permission and dashboard slices after current
+  validation and careful integration of overlapping documentation changes.
 
 ## Repository and branch map
 

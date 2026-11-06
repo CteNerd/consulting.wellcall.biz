@@ -44,7 +44,12 @@ Missing or invalid target context fails. `us-east-1` is explicit.
   portfolio EventBridge bus discovered from SSM. Failed stream batches go to a
   14-day SQS failure queue; a five-minute reconciliation schedule retries
   pending outbox records. The event reporting month is based on UTC and API
-  idempotency keys are retained for 24 hours.
+  idempotency keys have a 24-hour deduplication window. Expired receipts can be
+  replaced atomically even before asynchronous TTL deletion; cancellation
+  recovery recognizes only unexpired receipts.
+  Both stream and scheduled deliveries validate the strict reporting schema.
+  The publisher IAM grant permits only `rct.consulting` /
+  `consulting.lead.created.v1` events on the discovered bus.
 - No VPC, NAT, RDS, portfolio-owned EventBridge bus or legacy resource ownership
   changes.
 
@@ -54,6 +59,10 @@ PII is stored only in the domain table with the explicitly configured TTL; the
 reporting event contains no lead details. The public form also stays hidden
 unless its build-time API URL, approved consent copy/version and enable flag are
 present. The default stack and preview remain closed.
+
+The API's `PutItem` permission applies only within `TransactWriteItems` and only
+to `LEAD#`, `IDEMPOTENCY#` and `OUTBOX#` partition-key prefixes. Standalone puts
+are not granted.
 
 The inbox UI stays unavailable unless all four HTTPS build settings are present:
 `VITE_ADMIN_AUTH_URL` (Cognito hosted UI origin), `VITE_ADMIN_API_URL`,
@@ -119,7 +128,8 @@ Infrastructure deployment automation remains outstanding.
 
 Development source defines an OIDC web publisher whose identity policy and
 permissions boundary are the same narrowly scoped managed policy: bucket
-listing/location, GetObject/PutObject for `assets/*` and `index.html`, invalidation
+listing/location and public-access-block/policy-status reads, GetObject/PutObject
+for `assets/*` and `index.html`, invalidation
 and status reads for its own CloudFront distribution, and DescribeStacks for
 its own stack. It cannot delete objects, deploy infrastructure, edit identities,
 mutate business data or use production resources. Trust is exact repository,
@@ -140,7 +150,8 @@ AWS access keys or a Cognito client secret. Public browser client IDs are not se
 
 After merge and bootstrap, manually run the workflow on `main`. It runs modern
 checks and the high-severity audit, validates stack/account/role/closed intake,
-verifies the private S3 origin and anonymous API denial, builds the gated web
+requires all four S3 public-access blocks and an explicitly non-public bucket
+policy, verifies the OAC origin and anonymous API denial, builds the gated web
 app, uploads hashed assets before `index.html`, waits for invalidation, then
 compares the live entry point and every emitted asset byte-for-byte with the build. It prints the actual
 preview URL only after success. The build explicitly keeps public intake closed.

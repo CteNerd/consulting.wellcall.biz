@@ -83,12 +83,41 @@ test("development foundation keeps intake closed, protects API access and provis
   });
   const policies = JSON.stringify(template.findResources("AWS::IAM::Policy"));
   assert.match(policies, /dynamodb:GetItem/);
-  assert.match(policies, /dynamodb:TransactWriteItems/);
+  assert.doesNotMatch(policies, /dynamodb:TransactWriteItems/);
+  const [tableId] = Object.keys(template.findResources("AWS::DynamoDB::Table"));
+  assert.ok(tableId);
+  template.hasResourceProperties("AWS::IAM::Policy", {
+    PolicyDocument: {
+      Statement: Match.arrayWith([Match.objectLike({
+        Action: "dynamodb:PutItem",
+        Resource: { "Fn::GetAtt": [tableId, "Arn"] },
+        Condition: {
+          "ForAnyValue:StringEquals": { "dynamodb:EnclosingOperation": ["TransactWriteItems"] },
+          "ForAllValues:StringLike": { "dynamodb:LeadingKeys": ["LEAD#*", "IDEMPOTENCY#*", "OUTBOX#*"] },
+          Null: { "dynamodb:LeadingKeys": "false" },
+        },
+      })]),
+    },
+  });
   assert.match(policies, /dynamodb:UpdateItem/);
   assert.match(policies, /dynamodb:Query/);
   assert.match(policies, /index\/LeadListingIndex/);
   assert.match(policies, /"ForAllValues:StringLike":\{"dynamodb:LeadingKeys":\["LEAD#\*"\]\}/);
   assert.match(policies, /events:PutEvents/);
+  assert.equal((policies.match(/events:PutEvents/g) ?? []).length, 1);
+  template.hasResourceProperties("AWS::IAM::Policy", {
+    PolicyDocument: {
+      Statement: Match.arrayWith([Match.objectLike({
+        Action: "events:PutEvents",
+        Condition: {
+          StringEquals: {
+            "events:source": "rct.consulting",
+            "events:detail-type": "consulting.lead.created.v1",
+          },
+        },
+      })]),
+    },
+  });
   assert.match(policies, /"Action":"dynamodb:ListStreams","Effect":"Allow","Resource":"\*"/);
   assert.equal((policies.match(/"Resource":"\*"/g) ?? []).length, 1);
   assert.doesNotMatch(policies, /dynamodb:Scan|dynamodb:DeleteItem|sts:AssumeRole/);
@@ -141,6 +170,16 @@ test("development web publisher has exact OIDC trust and a matching artifact-onl
     "token.actions.githubusercontent.com:sub": "repo:CteNerd/consulting.wellcall.biz:environment:development",
   });
   const policies = JSON.stringify(template.findResources("AWS::IAM::ManagedPolicy"));
+  const [bucketId] = Object.keys(template.findResources("AWS::S3::Bucket"));
+  assert.ok(bucketId);
+  template.hasResourceProperties("AWS::IAM::ManagedPolicy", {
+    PolicyDocument: {
+      Statement: Match.arrayWith([Match.objectLike({
+        Action: ["s3:GetBucketLocation", "s3:GetBucketPublicAccessBlock", "s3:GetBucketPolicyStatus", "s3:ListBucket"],
+        Resource: { "Fn::GetAtt": [bucketId, "Arn"] },
+      })]),
+    },
+  });
   assert.match(policies, /s3:PutObject/);
   assert.match(policies, /assets\/\*|index\.html/);
   assert.match(policies, /cloudfront:CreateInvalidation/);

@@ -124,7 +124,7 @@ export class ApplicationStack extends Stack {
         description: "Development web artifacts only; no infrastructure, identity or application data mutations",
         statements: [
           new iam.PolicyStatement({
-            actions: ["s3:GetBucketLocation", "s3:ListBucket"],
+            actions: ["s3:GetBucketLocation", "s3:GetBucketPublicAccessBlock", "s3:GetBucketPolicyStatus", "s3:ListBucket"],
             resources: [bucket.bucketArn],
           }),
           new iam.PolicyStatement({
@@ -168,8 +168,17 @@ export class ApplicationStack extends Stack {
     const role = new iam.Role(this, "ApiRole", { assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com") });
     logGroup.grantWrite(role);
     role.addToPolicy(new iam.PolicyStatement({
-      actions: ["dynamodb:GetItem", "dynamodb:TransactWriteItems"],
+      actions: ["dynamodb:GetItem"],
       resources: [core.tableArn],
+    }));
+    role.addToPolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:PutItem"],
+      resources: [core.tableArn],
+      conditions: {
+        "ForAnyValue:StringEquals": { "dynamodb:EnclosingOperation": ["TransactWriteItems"] },
+        "ForAllValues:StringLike": { "dynamodb:LeadingKeys": ["LEAD#*", "IDEMPOTENCY#*", "OUTBOX#*"] },
+        Null: { "dynamodb:LeadingKeys": "false" },
+      },
     }));
     role.addToPolicy(new iam.PolicyStatement({
       actions: ["dynamodb:Query"],
@@ -280,7 +289,16 @@ export class ApplicationStack extends Stack {
       environment: { CORE_TABLE_NAME: core.tableName, EVENT_BUS_ARN: bus.eventBusArn },
       bundling: { minify: true, sourceMap: false },
     });
-    bus.grantPutEventsTo(publisher);
+    publisherRole.addToPolicy(new iam.PolicyStatement({
+      actions: ["events:PutEvents"],
+      resources: [bus.eventBusArn],
+      conditions: {
+        StringEquals: {
+          "events:source": "rct.consulting",
+          "events:detail-type": "consulting.lead.created.v1",
+        },
+      },
+    }));
     const publisherFailures = new sqs.Queue(this, "OutboxPublisherFailures", {
       queueName: `${config.prefix}-outbox-publisher-failures`,
       encryption: sqs.QueueEncryption.SQS_MANAGED,

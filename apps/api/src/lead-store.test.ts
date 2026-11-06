@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ConditionalCheckFailedException, DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
-import { buildLeadTransaction, DynamoLeadReader, DynamoLeadStatusWriter, InvalidLeadCursorError, LeadUpdateConflictError } from "./lead-store.ts";
+import { ConditionalCheckFailedException, DynamoDBClient, TransactionCanceledException } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, GetCommand, QueryCommand, TransactWriteCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { buildLeadTransaction, DynamoLeadReader, DynamoLeadStatusWriter, DynamoLeadWriter, IdempotencyConflictError, InvalidLeadCursorError, LeadUpdateConflictError } from "./lead-store.ts";
 import { createLeadRecord, type LeadSubmission } from "./leads.ts";
 
 const submission: LeadSubmission = {
@@ -16,11 +16,14 @@ const submission: LeadSubmission = {
 
 test("lead, idempotency key and PII-free reporting outbox are one conditional transaction", () => {
   const { lead, event } = createLeadRecord(submission, 90, new Date("2026-11-05T16:00:00.000Z"));
-  const transaction = buildLeadTransaction("consulting-core", lead, event);
+  const now = Math.floor(Date.parse(lead.createdAt) / 1000);
+  const transaction = buildLeadTransaction("consulting-core", lead, event, now);
   const items = transaction.TransactItems ?? [];
   assert.equal(items.length, 3);
   assert.ok(items.every((item) => item.Put?.TableName === "consulting-core"));
-  assert.ok(items.every((item) => item.Put?.ConditionExpression === "attribute_not_exists(PK)"));
+  assert.ok(items.slice(0, 2).every((item) => item.Put?.ConditionExpression === "attribute_not_exists(PK)"));
+  assert.equal(items[2]?.Put?.ConditionExpression, "attribute_not_exists(PK) OR expiresAt <= :now");
+  assert.deepEqual(items[2]?.Put?.ExpressionAttributeValues, { ":now": now });
 
   const leadItem = items[0]!.Put!.Item!;
   const outboxItem = items[1]!.Put!.Item!;
@@ -33,8 +36,58 @@ test("lead, idempotency key and PII-free reporting outbox are one conditional tr
   assert.equal(leadItem.consentedAt, "2026-11-05T16:00:00.000Z");
   assert.equal(leadItem.consentPolicyVersion, "2026-01");
   assert.equal(idempotencyItem.leadId, lead.leadId);
+  assert.equal(idempotencyItem.expiresAt, now + 86400);
   assert.deepEqual(outboxItem.event, event);
   assert.doesNotMatch(JSON.stringify(outboxItem), /person@example\.com|Riley Example|discuss a project/);
+});
+
+test("receipt recovery preserves active retries and rejects different submissions", async (t) => {
+  const now = Date.parse("2026-11-05T16:00:00.000Z");
+  t.mock.method(Date, "now", () => now);
+  const client = DynamoDBDocumentClient.from(new DynamoDBClient({ region: "us-east-1" }));
+  const { lead, event } = createLeadRecord(submission, 90, new Date(now));
+  const existingLead = { ...lead };
+  t.mock.method(client, "send", async (command: TransactWriteCommand | GetCommand) => {
+    if (command instanceof TransactWriteCommand) {
+      throw new TransactionCanceledException({ $metadata: {}, message: "receipt already exists" });
+    }
+    assert.ok(command instanceof GetCommand);
+    assert.equal(command.input.ConsistentRead, true);
+    return command.input.Key?.PK === `IDEMPOTENCY#${lead.idempotencyKey}`
+      ? { Item: { leadId: lead.leadId, expiresAt: now / 1000 + 1 } }
+      : { Item: existingLead };
+  });
+  const writer = new DynamoLeadWriter(client, "core");
+  assert.equal(await writer.create(lead, event), "duplicate");
+  existingLead.message = "A different submission.";
+  await assert.rejects(writer.create(lead, event), IdempotencyConflictError);
+});
+
+test("expired or invalid receipts cannot recover canceled transactions as duplicates", async (t) => {
+  const now = Date.parse("2026-11-05T16:00:00.000Z");
+  t.mock.method(Date, "now", () => now);
+  const client = DynamoDBDocumentClient.from(new DynamoDBClient({ region: "us-east-1" }));
+  const { lead, event } = createLeadRecord(submission, 90, new Date(now));
+  const canceled = new TransactionCanceledException({ $metadata: {}, message: "transaction canceled" });
+  let expiresAt: unknown;
+  let reads = 0;
+  t.mock.method(client, "send", async (command: TransactWriteCommand | GetCommand) => {
+    if (command instanceof TransactWriteCommand) {
+      const receipt = command.input.TransactItems?.[2]?.Put;
+      assert.equal(receipt?.ConditionExpression, "attribute_not_exists(PK) OR expiresAt <= :now");
+      assert.equal(receipt?.ExpressionAttributeValues?.[":now"], now / 1000);
+      assert.equal(receipt?.Item?.expiresAt, now / 1000 + 86400);
+      throw canceled;
+    }
+    assert.ok(command instanceof GetCommand);
+    reads++;
+    return { Item: { leadId: lead.leadId, expiresAt } };
+  });
+  const writer = new DynamoLeadWriter(client, "core");
+  for (expiresAt of [now / 1000 - 1, now / 1000, undefined, "invalid"]) {
+    await assert.rejects(writer.create(lead, event), (error) => error === canceled);
+  }
+  assert.equal(reads, 4);
 });
 
 test("lead listing requests bounded expiry filtering and round-trips a validated page cursor", async (t) => {

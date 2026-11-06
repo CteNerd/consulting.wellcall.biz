@@ -42,15 +42,18 @@ export class DynamoLeadWriter implements LeadWriter {
 
   async create(lead: StoredLead, event: ReportingEvent): Promise<"created" | "duplicate"> {
     const idempotencyKey = { PK: `IDEMPOTENCY#${lead.idempotencyKey}`, SK: "LEAD" };
+    const now = Math.floor(Date.now() / 1000);
     try {
-      await this.client.send(new TransactWriteCommand(buildLeadTransaction(this.tableName, lead, event)));
+      await this.client.send(new TransactWriteCommand(buildLeadTransaction(this.tableName, lead, event, now)));
       return "created";
     } catch (error) {
       if (!(error instanceof TransactionCanceledException)) throw error;
       const existing = await this.client.send(new GetCommand({
         TableName: this.tableName, Key: idempotencyKey, ConsistentRead: true,
       }));
-      if (!existing.Item || typeof existing.Item.leadId !== "string") throw error;
+      if (!existing.Item || typeof existing.Item.leadId !== "string"
+        || typeof existing.Item.expiresAt !== "number" || !Number.isSafeInteger(existing.Item.expiresAt)
+        || existing.Item.expiresAt <= now) throw error;
       const existingLead = await this.client.send(new GetCommand({
         TableName: this.tableName,
         Key: { PK: `LEAD#${existing.Item.leadId}`, SK: "METADATA" },
@@ -137,6 +140,7 @@ export function buildLeadTransaction(
   tableName: string,
   lead: StoredLead,
   event: ReportingEvent,
+  now = Math.floor(Date.now() / 1000),
 ): TransactWriteCommandInput {
   return {
     TransactItems: [
@@ -170,9 +174,10 @@ export function buildLeadTransaction(
           TableName: tableName,
           Item: {
             PK: `IDEMPOTENCY#${lead.idempotencyKey}`, SK: "LEAD", leadId: lead.leadId,
-            expiresAt: Math.floor(Date.now() / 1000) + 86400,
+            expiresAt: now + 86400,
           },
-          ConditionExpression: "attribute_not_exists(PK)",
+          ConditionExpression: "attribute_not_exists(PK) OR expiresAt <= :now",
+          ExpressionAttributeValues: { ":now": now },
         },
       },
     ],

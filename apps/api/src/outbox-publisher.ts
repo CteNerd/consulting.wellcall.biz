@@ -63,6 +63,7 @@ export function createOutboxPublisher(dependencies: PublisherDependencies) {
 }
 
 async function deliver(item: OutboxItem, dependencies: PublisherDependencies): Promise<void> {
+  if (!isReportingEvent(item.event)) throw new Error("Outbox event violates the reporting schema");
   await dependencies.publish(item.event);
   await dependencies.markDelivered(item);
 }

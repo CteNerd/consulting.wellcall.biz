@@ -98,9 +98,19 @@ test("publisher rejects malformed or PII-bearing outbox payloads without sending
   const unsafe = {
     ...event,
     detail: { ...event.detail, data: { ...event.detail.data, email: "person@example.com" } },
-  } as unknown as ReportingEvent;
+  };
   assert.deepEqual(await handler(streamEvent(unsafe)), {
     batchItemFailures: [{ itemIdentifier: "123" }],
   });
   assert.deepEqual(published, []);
+
+  const marked: string[] = [];
+  const reconciler = createOutboxPublisher({
+    publish: async (item) => { published.push(item); },
+    markDelivered: async (item) => { marked.push(item.PK); },
+    findPending: async () => [{ PK: "OUTBOX#event-1", SK: "EVENT", event: unsafe, status: "PENDING" }],
+  });
+  await assert.rejects(reconciler({ "detail-type": "Scheduled Event" } as ScheduledEvent), /Failed to deliver 1 pending/);
+  assert.deepEqual(published, []);
+  assert.deepEqual(marked, []);
 });
