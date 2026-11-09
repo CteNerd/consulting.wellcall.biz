@@ -18,6 +18,9 @@ export function configuration(environment: unknown, account: unknown, existingDe
     account,
     region: "us-east-1",
     prefix: `rct-consulting-${environment}`,
+    releaseAssetsBucket: environment === "development"
+      ? `rct-consulting-development-assets-${account}-us-east-1`
+      : `rct-consulting-production-release-assets-${account}-us-east-1`,
     webDomain: environment === "production" ? "thirddowntech.com" : "dev.thirddowntech.com",
     apiDomain: environment === "production" ? "api.thirddowntech.com" : undefined,
     hostedZoneName: "thirddowntech.com",

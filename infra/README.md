@@ -239,11 +239,11 @@ Lambda/API code, migrate data, modify DNS or publish production.
 
 Before its first run, an authorized operator must review and create
 `rct-consulting-development-foundation` in the real account, using approved
-bootstrap/CloudFormation execution permissions. The existing GitHub OIDC
+owner-authorized CloudFormation change-set permissions. The existing GitHub OIDC
 provider must include `sts.amazonaws.com`; the stack imports it, never recreates
 it. Keep `LeadIntakeEnabled=false`. Consulting also needs the portfolio bus/SSM
 discovery prerequisite, reviewed runtime permissions and budget/rollback gates.
-Do not use the synthetic CI synth assembly or widen the shared bootstrap role.
+Do not use the synthetic CI synth assembly or shared CDKToolkit executor.
 Infrastructure deployment automation remains outstanding.
 
 Development source defines an OIDC web publisher whose identity policy and
@@ -350,28 +350,164 @@ npm exec --workspace @rct/consulting-infra -- cdk synth \
   --output cdk.out/review-production --quiet
 ```
 
-After separate IAM/bootstrap review and the portfolio event-bus SSM prerequisites,
-the parent may prepare **non-executing** change sets from these assemblies:
+### Isolated asset bootstrap and current-credential publication
+
+The application always uses `CliCredentialsStackSynthesizer`, never the shared
+default deploy/CloudFormation executor. Its assembly has **no** assume-role,
+execution-role, lookup-role or bootstrap-version SSM bindings. File assets,
+including the generated template, use only `release/` in:
+
+| Environment | Release asset bucket |
+| --- | --- |
+| development | `rct-consulting-development-assets-425061472162-us-east-1` (existing; preserve exactly) |
+| production | `rct-consulting-production-release-assets-425061472162-us-east-1` |
+
+`infra/release-assets.production.template.json` is the complete minimal
+production asset-only bootstrap template. It creates just the named private
+SSE-S3/AES256, bucket-owner-enforced, versioned retained bucket and a retained
+TLS-only deny policy. Outputs: `ReleaseAssetsBucket`, `FileAssetPrefix=release/`.
+No IAM role, executor, trust chain, SSM binding, access grant, development
+resource or web bucket is created. Do not run `cdk bootstrap`, recreate the
+existing development asset bucket, or use the verified broad shared executor.
+
+The parent must inspect and authorize the **initial** IAM-bearing foundation
+change set with approved owner credentials. This template supplies no new
+executor and no role-chain bypass. Current credentials need reviewed
+bucket-location/list and `release/*` GetObject/PutObject access for asset
+publication, plus separately authorized CloudFormation/application permissions
+for change-set preparation/execution. The web OIDC publisher is deliberately
+insufficient: it cannot publish Lambda assets or deploy infrastructure.
+Do not select a profile that silently assumes the shared deploy/execution roles.
+
+These are **operator-only AWS writes, not run by this agent**. From the
+repository root, first prepare the asset-only production bootstrap CREATE:
 
 ```sh
-npm exec --workspace @rct/consulting-infra -- cdk deploy \
-  --app cdk.out/review-development rct-consulting-development-foundation \
-  --method prepare-change-set --change-set-name consulting-development-public-source \
-  --parameters LeadIntakeEnabled=false --require-approval broadening
-npm exec --workspace @rct/consulting-infra -- cdk deploy \
-  --app cdk.out/review-production rct-consulting-production-foundation \
-  --method prepare-change-set --change-set-name consulting-production-public-source \
-  --parameters LeadIntakeEnabled=false --require-approval broadening
+export AWS_REGION=us-east-1 AWS_DEFAULT_REGION=us-east-1 AWS_PAGER=""
+test "$(aws sts get-caller-identity --query Account --output text)" = 425061472162
+aws cloudformation create-change-set \
+  --region us-east-1 --stack-name rct-consulting-production-release-assets \
+  --change-set-name consulting-production-release-assets-create \
+  --change-set-type CREATE \
+  --template-body file://infra/release-assets.production.template.json
+aws cloudformation wait change-set-create-complete \
+  --region us-east-1 --stack-name rct-consulting-production-release-assets \
+  --change-set-name consulting-production-release-assets-create
+aws cloudformation describe-change-set \
+  --region us-east-1 --stack-name rct-consulting-production-release-assets \
+  --change-set-name consulting-production-release-assets-create
 ```
 
-These deploy commands are operator-only and still write AWS change sets/assets;
-they were **not run by this agent**. Inspect the complete change set before
-separately authorizing execution. Dev must preserve the existing distribution,
-alias/certificate, pool, bucket and table, with no DNS adoption; production
-creates its apex/API DNS and certificate only under the explicit flags above.
-Never deploy the synthetic account assemblies or seed users as part of release.
-No additional dev bootstrap is needed. Production may require separately
-reviewed trust/bootstrap setup; web publisher roles cannot perform it.
+Only after explicit inspection/authorization, the parent may separately run:
+
+```sh
+aws cloudformation execute-change-set \
+  --region us-east-1 --stack-name rct-consulting-production-release-assets \
+  --change-set-name consulting-production-release-assets-create
+aws cloudformation wait stack-create-complete \
+  --region us-east-1 --stack-name rct-consulting-production-release-assets
+```
+
+There is no `--role-arn`: this new asset-only stack
+must not inherit a service role. No IAM capability is needed for its two S3
+resources. If a stack with that name already exists, stop and inspect it rather
+than treating CREATE failure as permission to replace/adopt anything.
+
+After both release asset buckets exist and the portfolio event-bus SSM
+prerequisites are satisfied, publish from the reviewed offline assemblies
+using **only the currently approved credentials**, with no role switch:
+
+```sh
+npm exec --workspace @rct/consulting-infra -- cdk publish-assets \
+  --app cdk.out/review-development rct-consulting-development-foundation
+npm exec --workspace @rct/consulting-infra -- cdk publish-assets \
+  --app cdk.out/review-production rct-consulting-production-foundation
+```
+
+This uploads the generated CloudFormation template as well as both Lambda
+ZIPs; it does not deploy. The generated foundation template exceeds the
+CloudFormation inline-body limit, so use its published HTTPS S3 URL.
+Derive URLs from the actual assemblies rather than copying a stale hash:
+
+```sh
+template_url() {
+  node --input-type=module - "$1" "$2" <<'NODE'
+import { readFileSync } from "node:fs";
+const [directory, stack] = process.argv.slice(2);
+const manifest = JSON.parse(readFileSync(`${directory}/manifest.json`, "utf8"));
+const uri = new URL(manifest.artifacts[stack].properties.stackTemplateAssetObjectUrl);
+console.log(`https://${uri.hostname}.s3.us-east-1.amazonaws.com${uri.pathname}`);
+NODE
+}
+DEV_TEMPLATE_URL=$(template_url infra/cdk.out/review-development rct-consulting-development-foundation)
+PROD_TEMPLATE_URL=$(template_url infra/cdk.out/review-production rct-consulting-production-foundation)
+
+# CloudFormation retains a stack's existing RoleARN when --role-arn is omitted.
+# Fail closed rather than silently reusing any existing service role on dev UPDATE.
+test "$(aws cloudformation describe-stacks --region us-east-1 \
+  --stack-name rct-consulting-development-foundation \
+  --query 'Stacks[0].RoleARN' --output text)" = None
+
+aws cloudformation create-change-set \
+  --region us-east-1 --stack-name rct-consulting-development-foundation \
+  --change-set-name consulting-development-public-source \
+  --change-set-type UPDATE --template-url "$DEV_TEMPLATE_URL" \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameters ParameterKey=LeadIntakeEnabled,ParameterValue=false \
+    ParameterKey=LeadConsentPolicyVersion,UsePreviousValue=true \
+    ParameterKey=LeadRetentionDays,UsePreviousValue=true
+aws cloudformation create-change-set \
+  --region us-east-1 --stack-name rct-consulting-production-foundation \
+  --change-set-name consulting-production-public-source \
+  --change-set-type CREATE --template-url "$PROD_TEMPLATE_URL" \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameters ParameterKey=LeadIntakeEnabled,ParameterValue=false
+```
+
+If development reports any `RoleARN`, **stop**: omission does not clear a sticky
+service role. Report it for separate owner review; do not pass a shared role,
+add an ad hoc executor or work around its trust. Production foundation CREATE
+likewise requires the stack to be absent; inspect any existing stack rather
+than silently changing CREATE to UPDATE. Do not add `--role-arn` to these
+instructions. The parent's separately approved initial IAM bootstrap, not
+shared AdministratorAccess, owns the necessary authorization.
+
+For each application change set, the parent must separately
+wait and inspect (including IAM changes):
+
+```sh
+for target in development production; do
+  aws cloudformation wait change-set-create-complete \
+    --region us-east-1 --stack-name "rct-consulting-$target-foundation" \
+    --change-set-name "consulting-$target-public-source"
+  aws cloudformation describe-change-set \
+    --region us-east-1 --stack-name "rct-consulting-$target-foundation" \
+    --change-set-name "consulting-$target-public-source"
+done
+```
+
+Only after separate owner authorization for each target, execute its reviewed
+change set and wait for its matching operation (not run by this agent):
+
+```sh
+aws cloudformation execute-change-set \
+  --region us-east-1 --stack-name rct-consulting-development-foundation \
+  --change-set-name consulting-development-public-source
+aws cloudformation wait stack-update-complete \
+  --region us-east-1 --stack-name rct-consulting-development-foundation
+aws cloudformation execute-change-set \
+  --region us-east-1 --stack-name rct-consulting-production-foundation \
+  --change-set-name consulting-production-public-source
+aws cloudformation wait stack-create-complete \
+  --region us-east-1 --stack-name rct-consulting-production-foundation
+```
+
+No execution is automated here.
+Dev UPDATE must preserve the existing distribution, alias/certificate, pool,
+bucket and table with no DNS adoption. Production creates apex/API DNS and
+certificate only under the explicit synth flags above. Never deploy synthetic
+account assemblies, seed users, repeat dev bootstrap or use stack deletion
+as a migration shortcut. Intake and access remain closed.
 
 ### Provenance and rollback
 
