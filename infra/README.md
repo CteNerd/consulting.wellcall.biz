@@ -422,12 +422,13 @@ using **only the currently approved credentials**, with no role switch:
 
 ```sh
 set -euo pipefail
-npm exec --workspace @rct/consulting-infra -- cdk publish-assets \
+npm exec --workspace @rct/consulting-infra -- cdk publish-assets --unstable=publish-assets \
   --app cdk.out/review-development rct-consulting-development-foundation
-npm exec --workspace @rct/consulting-infra -- cdk publish-assets \
+npm exec --workspace @rct/consulting-infra -- cdk publish-assets --unstable=publish-assets \
   --app cdk.out/review-production rct-consulting-production-foundation
 ```
 
+The pinned CDK CLI requires the explicit `--unstable=publish-assets` opt-in.
 This uploads the generated CloudFormation template as well as both Lambda
 ZIPs; it does not deploy. The generated foundation template exceeds the
 CloudFormation inline-body limit, so use its published HTTPS S3 URL.
