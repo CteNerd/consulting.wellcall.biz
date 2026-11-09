@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { readFileSync, rmSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { test } from "node:test";
 import { App } from "aws-cdk-lib";
@@ -61,6 +62,57 @@ test("production asset-only bootstrap retains a private versioned encrypted buck
         BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true,
       },
     }),
+  });
+
+  test("documented change-set commands abort before AWS writes for wrong accounts, service roles and failed checks", (t) => {
+    const root = resolve(import.meta.dirname, `../.runbook-test-${process.pid}`);
+    mkdirSync(resolve(root, "bin"), { recursive: true });
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    for (const environment of ["development", "production"]) {
+      const directory = resolve(root, `infra/cdk.out/review-${environment}`);
+      mkdirSync(directory, { recursive: true });
+      writeFileSync(resolve(directory, "manifest.json"), JSON.stringify({ artifacts: {
+        [`rct-consulting-${environment}-foundation`]: { properties: {
+          stackTemplateAssetObjectUrl: `s3://test-bucket/release/${"a".repeat(64)}.json`,
+        } },
+      } }));
+    }
+    writeFileSync(resolve(root, "bin/aws"), `#!/usr/bin/env bash
+  if test "$1 $2" = "sts get-caller-identity"; then
+    printf '%s\\n' "$TEST_ACCOUNT"
+    exit 0
+  fi
+  if test "$1 $2" = "cloudformation describe-stacks"; then
+    if test "\${TEST_ROLE_FAILURE:-}" = 1; then exit 1; fi
+    printf '%s\\n' "$TEST_ROLE"
+    exit 0
+  fi
+  printf '%s\\n' "$*" >> "$TEST_WRITES"
+  `, { mode: 0o755 });
+    const runbook = readFileSync(resolve(import.meta.dirname, "../README.md"), "utf8");
+    const blocks = [...runbook.matchAll(/```sh\n([\s\S]*?)```/g)].map((match) => match[1]!);
+    const bootstrap = blocks.find((block) => block.includes("--template-body file://infra/release-assets.production.template.json"));
+    const application = blocks.find((block) => block.includes("DEV_TEMPLATE_URL="));
+    assert.ok(bootstrap);
+    assert.ok(application);
+    const writes = resolve(root, "writes.log");
+    for (const [script, account, role, roleFailure] of [
+      [bootstrap, "111122223333", "None", ""],
+      [application, "111122223333", "None", ""],
+      [application, "425061472162", "arn:aws:iam::425061472162:role/prohibited-executor", ""],
+      [application, "425061472162", "None", "1"],
+    ]) {
+      writeFileSync(writes, "");
+      const result = spawnSync("bash", ["-c", script!], {
+        cwd: root, encoding: "utf8", env: {
+          ...process.env, PATH: `${resolve(root, "bin")}:${process.env.PATH}`,
+          TEST_ACCOUNT: account!, TEST_ROLE: role!, TEST_ROLE_FAILURE: roleFailure!, TEST_WRITES: writes,
+        },
+      });
+      assert.notEqual(result.status, 0, "Unsafe target must abort");
+      assert.match(result.stderr, /STOP:/);
+      assert.equal(readFileSync(writes, "utf8"), "", "No AWS mutation may follow a failed guard");
+    }
   });
   template.hasResourceProperties("AWS::S3::BucketPolicy", {
     PolicyDocument: {

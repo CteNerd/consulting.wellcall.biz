@@ -383,8 +383,10 @@ These are **operator-only AWS writes, not run by this agent**. From the
 repository root, first prepare the asset-only production bootstrap CREATE:
 
 ```sh
+set -euo pipefail
 export AWS_REGION=us-east-1 AWS_DEFAULT_REGION=us-east-1 AWS_PAGER=""
-test "$(aws sts get-caller-identity --query Account --output text)" = 425061472162
+test "$(aws sts get-caller-identity --query Account --output text)" = 425061472162 \
+  || { printf '%s\n' 'STOP: wrong or unverified AWS account.' >&2; exit 1; }
 aws cloudformation create-change-set \
   --region us-east-1 --stack-name rct-consulting-production-release-assets \
   --change-set-name consulting-production-release-assets-create \
@@ -401,6 +403,7 @@ aws cloudformation describe-change-set \
 Only after explicit inspection/authorization, the parent may separately run:
 
 ```sh
+set -euo pipefail
 aws cloudformation execute-change-set \
   --region us-east-1 --stack-name rct-consulting-production-release-assets \
   --change-set-name consulting-production-release-assets-create
@@ -418,6 +421,7 @@ prerequisites are satisfied, publish from the reviewed offline assemblies
 using **only the currently approved credentials**, with no role switch:
 
 ```sh
+set -euo pipefail
 npm exec --workspace @rct/consulting-infra -- cdk publish-assets \
   --app cdk.out/review-development rct-consulting-development-foundation
 npm exec --workspace @rct/consulting-infra -- cdk publish-assets \
@@ -430,6 +434,9 @@ CloudFormation inline-body limit, so use its published HTTPS S3 URL.
 Derive URLs from the actual assemblies rather than copying a stale hash:
 
 ```sh
+set -euo pipefail
+test "$(aws sts get-caller-identity --query Account --output text)" = 425061472162 \
+  || { printf '%s\n' 'STOP: wrong or unverified AWS account.' >&2; exit 1; }
 template_url() {
   node --input-type=module - "$1" "$2" <<'NODE'
 import { readFileSync } from "node:fs";
@@ -446,7 +453,8 @@ PROD_TEMPLATE_URL=$(template_url infra/cdk.out/review-production rct-consulting-
 # Fail closed rather than silently reusing any existing service role on dev UPDATE.
 test "$(aws cloudformation describe-stacks --region us-east-1 \
   --stack-name rct-consulting-development-foundation \
-  --query 'Stacks[0].RoleARN' --output text)" = None
+  --query 'Stacks[0].RoleARN' --output text)" = None \
+  || { printf '%s\n' 'STOP: existing or unverified CloudFormation service role.' >&2; exit 1; }
 
 aws cloudformation create-change-set \
   --region us-east-1 --stack-name rct-consulting-development-foundation \
@@ -490,6 +498,7 @@ Only after separate owner authorization for each target, execute its reviewed
 change set and wait for its matching operation (not run by this agent):
 
 ```sh
+set -euo pipefail
 aws cloudformation execute-change-set \
   --region us-east-1 --stack-name rct-consulting-development-foundation \
   --change-set-name consulting-development-public-source
