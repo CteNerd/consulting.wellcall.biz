@@ -99,11 +99,16 @@ rules are unchanged. Source pushes are not a merge or a deployment.
 
 Verified feature-push evidence:
 
-- Consulting checkpoint CI
-  [42619134986](https://github.com/CteNerd/consulting.wellcall.biz/actions/runs/42619134986)
-  passed.
+- Consulting workflow source checkpoints `f1ec837` and `97a1b0e` are pushed.
+  [42622238514](https://github.com/CteNerd/consulting.wellcall.biz/actions/runs/42622238514)
+  passed all foundation/build/synth checks and the actual DynamoDB Local
+  workspace integration: draft/edit/submit/reject/correct/resubmit/approve,
+  stale writes, unassigned/self-review denials, immutable retention of seven
+  contributor transitions and no reporting outbox. Three tests passed with
+  zero failures/skips in a unique cleaned-up local table with fake credentials.
 - Community
-  [42620018414](https://github.com/CteNerd/community.wellcall.biz/actions/runs/42620018414)
+  applicant/reviewer source checkpoint `96fd275` is pushed.
+  [42622233413](https://github.com/CteNerd/community.wellcall.biz/actions/runs/42622233413)
   passed foundation checks and real DynamoDB Local application integration:
   duplicate submission recovery, cross-applicant denial, one winner in racing
   withdrawals, retention enforcement before TTL deletion, and prerequisite-
@@ -115,6 +120,10 @@ Verified feature-push evidence:
   passed profile/workspace checks and isolated reporting integration. The
   synthetic dashboard fixtures are absent from production Founder and public
   profile artifacts.
+
+The actual DynamoDB tests ran in isolated hosted CI containers, not against
+live AWS or the local Mac (whose Docker daemon/JVM is unavailable). The checked
+source heads above are feature-branch checkpoints, not published releases.
 
 The Founder rehearsal is running at `http://localhost:5184/founder/`.
 To restart it, run `npm run dev:uat --workspace @rct/founder-web` from the
