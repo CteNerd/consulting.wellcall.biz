@@ -33,6 +33,16 @@ if test "$RELEASE_ENVIRONMENT" = development; then
   grep -Eiq '^x-robots-tag:.*noindex' .release/headers
 fi
 
+invalidation=""
+promotion_state=publishing
+record_promotion() {
+  printf '{"repository":"%s","sourceSha":"%s","runId":"%s","runAttempt":"%s","environment":"%s","manifestSha256":"%s","bucket":"%s","distributionId":"%s","invalidationId":"%s","state":"%s","exitStatus":%s}\n' \
+    "$GITHUB_REPOSITORY" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$RELEASE_ENVIRONMENT" \
+    "$CANDIDATE_MANIFEST_SHA256" "$PREVIEW_BUCKET" "$PREVIEW_DISTRIBUTION_ID" "$invalidation" "$promotion_state" "$1" > .release/promotion.json
+}
+record_promotion 0
+trap 'status=$?; if test "$status" -ne 0; then promotion_state=failed; fi; record_promotion "$status"' EXIT
+
 # Snapshot the previous entry point; old content-addressed assets are never deleted.
 exists=$(aws s3api list-objects-v2 --bucket "$PREVIEW_BUCKET" --prefix index.html --query "Contents[?Key=='index.html'].Key" --output text)
 if test -n "$exists" && test "$exists" != None; then
@@ -44,6 +54,8 @@ aws s3 cp candidate/index.html "s3://$PREVIEW_BUCKET/index.html" \
   --content-type "text/html" --cache-control "no-cache" --only-show-errors
 invalidation=$(aws cloudfront create-invalidation --distribution-id "$PREVIEW_DISTRIBUTION_ID" \
   --paths "/*" --query Invalidation.Id --output text)
+promotion_state=invalidating
+record_promotion 0
 aws cloudfront wait invalidation-completed --distribution-id "$PREVIEW_DISTRIBUTION_ID" --id "$invalidation"
 
 for path in / /small-business /enterprise /services /approach /about /faq /contact \
@@ -69,9 +81,7 @@ for path in /not-a-public-route /assets/missing-release-check.js /api/not-a-publ
   status=$(curl --max-time 30 --silent --show-error --output /dev/null --write-out "%{http_code}" "$PREVIEW_WEB_URL$path")
   test "$status" = "403" || test "$status" = "404"
 done
-cp candidate/manifest.json .release/manifest.json
-printf '{"repository":"%s","sourceSha":"%s","runId":"%s","runAttempt":"%s","environment":"%s","manifestSha256":"%s","distributionId":"%s","invalidationId":"%s"}\n' \
-  "$GITHUB_REPOSITORY" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$RELEASE_ENVIRONMENT" \
-  "$CANDIDATE_MANIFEST_SHA256" "$PREVIEW_DISTRIBUTION_ID" "$invalidation" > .release/promotion.json
+promotion_state=verified
+record_promotion 0
 printf '### %s web promotion\n- Source: `%s`\n- Run: `%s` (attempt %s)\n- Candidate manifest SHA-256: `%s`\n- URL: %s\n- Intake closed; auth unconfigured; immutable assets retained.\n' \
   "$RELEASE_ENVIRONMENT" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$CANDIDATE_MANIFEST_SHA256" "$PREVIEW_WEB_URL" >> "$GITHUB_STEP_SUMMARY"

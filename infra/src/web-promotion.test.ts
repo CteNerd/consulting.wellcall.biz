@@ -54,6 +54,7 @@ if (args[1] === "get-distribution") value = { Distribution: {
 if (args[1] === "list-objects-v2") { console.log("index.html"); process.exit(); }
 if (args[1] === "cp" && args[2].startsWith("s3://")) fs.writeFileSync(args[3], "previous release");
 if (args[1] === "create-invalidation") { console.log("I123TEST"); process.exit(); }
+if (args[1] === "wait" && process.env.FAIL_INVALIDATION_WAIT) process.exit(1);
 console.log(JSON.stringify(value));
 `, { mode: 0o755 });
   writeFileSync(join(root, "bin/curl"), `#!/usr/bin/env node
@@ -71,7 +72,7 @@ if (args.includes("--write-out")) {
   process.stdout.write(JSON.stringify({ status: "ok", application: "consulting" }));
 } else {
   const data = fs.readFileSync(url.pathname.startsWith("/assets/") ? "candidate" + url.pathname : "candidate/index.html");
-  if (!args.includes("--output")) process.stdout.write(data);
+  if (!args.includes("--output")) process.stdout.write(process.env.CORRUPT_PUBLISHED ? "wrong bytes" : data);
 }
 `, { mode: 0o755 });
 
@@ -98,6 +99,18 @@ if (args.includes("--write-out")) {
     assert.doesNotMatch(calls, /--delete|delete-object|assume-role|deploy/);
     assert.equal(readFileSync(join(root, ".release/previous-index.html"), "utf8"), "previous release");
     assert.equal(JSON.parse(readFileSync(join(root, ".release/promotion.json"), "utf8")).manifestSha256, hash);
+  }
+  for (const extra of [{ FAIL_INVALIDATION_WAIT: "1" }, { CORRUPT_PUBLISHED: "1" }]) {
+    const failed = run("production", extra);
+    assert.notEqual(failed.status, 0);
+    const provenance = JSON.parse(readFileSync(join(root, ".release/promotion.json"), "utf8"));
+    assert.equal(provenance.sourceSha, sourceSha);
+    assert.equal(provenance.manifestSha256, hash);
+    assert.equal(provenance.distributionId, "E123456789TEST");
+    assert.equal(provenance.invalidationId, "I123TEST");
+    assert.equal(provenance.state, "failed");
+    assert.notEqual(provenance.exitStatus, 0);
+    assert.equal(readFileSync(join(root, ".release/previous-index.html"), "utf8"), "previous release");
   }
   const unprotected = run("development", { OMIT_NOINDEX: "1" });
   assert.notEqual(unprotected.status, 0);

@@ -378,6 +378,9 @@ reviewed trust/bootstrap setup; web publisher roles cannot perform it.
 Candidate and per-environment promotion artifacts are retained for 90 days
 (subject to repository retention policy). Promotion records include reviewed
 SHA, run/attempt, manifest digest, distribution and invalidation IDs. Each
+record is persisted before S3 publication and updated immediately when an
+invalidation ID is available; an exit trap preserves failed-check state and
+exit status rather than losing the attempted release's provenance. Each
 environment artifact also captures the previous `index.html` when present,
 including on a later verification failure. Old hashed assets remain in S3.
 Download/archive approved artifacts before expiry if longer recovery is needed.
