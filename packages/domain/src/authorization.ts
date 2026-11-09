@@ -2,6 +2,7 @@ export type Membership = {
   userId: string;
   active: boolean;
   financeAccess: boolean;
+  projectAdmin?: boolean;
 };
 
 export type ProjectAssignment = {
@@ -11,7 +12,7 @@ export type ProjectAssignment = {
   role: "contributor" | "manager";
 };
 
-export type ProjectAction = "read" | "manage_tasks" | "log_time" | "approve_time";
+export type ProjectAction = "read" | "manage_tasks" | "update_task" | "log_time" | "approve_time";
 
 export function canAccessProject(
   membership: Membership | null,
@@ -23,12 +24,17 @@ export function canAccessProject(
   if (assignment.userId !== membership.userId || assignment.projectId !== resource.projectId) return false;
   switch (action) {
     case "read":
-    case "manage_tasks":
       return true;
+    case "manage_tasks":
+      return assignment.role === "manager" || membership.projectAdmin === true;
+    case "update_task":
+      return assignment.role === "manager" || membership.projectAdmin === true
+        || resource.workerId === membership.userId;
     case "log_time":
       return resource.workerId === membership.userId;
     case "approve_time":
-      return assignment.role === "manager" && resource.workerId !== undefined
+      return (assignment.role === "manager" || membership.projectAdmin === true)
+        && resource.workerId !== undefined
         && resource.workerId !== membership.userId;
   }
 }

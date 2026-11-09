@@ -23,6 +23,7 @@ import * as ssm from "aws-cdk-lib/aws-ssm";
 import type { Construct } from "constructs";
 import { resolve } from "node:path";
 import type { Configuration } from "./config.ts";
+import { publicRouteFunctionCode } from "./web-routing.ts";
 
 export class ApplicationStack extends Stack {
   constructor(scope: Construct, config: Configuration, customDomains = false, brandLaunchApproved = false) {
@@ -62,6 +63,12 @@ export class ApplicationStack extends Stack {
         "consentedAt", "consentPolicyVersion", "status", "version", "expiresAt",
       ],
     });
+    core.addGlobalSecondaryIndex({
+      indexName: "WorkspaceIndex",
+      partitionKey: { name: "GSI3PK", type: dynamodb.AttributeType.STRING },
+      sortKey: { name: "GSI3SK", type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
     const bucket = new s3.Bucket(this, "WebAssets", {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       encryption: s3.BucketEncryption.S3_MANAGED,
@@ -76,6 +83,11 @@ export class ApplicationStack extends Stack {
       subjectAlternativeNames: config.apiDomain ? [config.apiDomain] : [],
       validation: acm.CertificateValidation.fromDns(zone),
     }) : undefined;
+    const publicRouting = new cloudfront.Function(this, "PublicPageRouting", {
+      code: cloudfront.FunctionCode.fromInline(publicRouteFunctionCode),
+      runtime: cloudfront.FunctionRuntime.JS_2_0,
+      comment: "Serve the public page shell only for approved Third Down routes",
+    });
     const distribution = new cloudfront.Distribution(this, "Web", {
       defaultRootObject: "index.html",
       defaultBehavior: {
@@ -83,6 +95,10 @@ export class ApplicationStack extends Stack {
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         responseHeadersPolicy: cloudfront.ResponseHeadersPolicy.SECURITY_HEADERS,
         compress: true,
+        functionAssociations: [{
+          eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+          function: publicRouting,
+        }],
       },
       ...(certificate ? {
         domainNames: [config.webDomain], certificate,
@@ -170,13 +186,19 @@ export class ApplicationStack extends Stack {
     role.addToPolicy(new iam.PolicyStatement({
       actions: ["dynamodb:GetItem"],
       resources: [core.tableArn],
+      conditions: {
+        "ForAllValues:StringLike": { "dynamodb:LeadingKeys": ["LEAD#*", "IDEMPOTENCY#*", "USER#*", "PROJECT#*"] },
+        Null: { "dynamodb:LeadingKeys": "false" },
+      },
     }));
     role.addToPolicy(new iam.PolicyStatement({
       actions: ["dynamodb:PutItem"],
       resources: [core.tableArn],
       conditions: {
         "ForAnyValue:StringEquals": { "dynamodb:EnclosingOperation": ["TransactWriteItems"] },
-        "ForAllValues:StringLike": { "dynamodb:LeadingKeys": ["LEAD#*", "IDEMPOTENCY#*", "OUTBOX#*"] },
+        "ForAllValues:StringLike": {
+          "dynamodb:LeadingKeys": ["LEAD#*", "IDEMPOTENCY#*", "OUTBOX#*", "PROJECT#*"],
+        },
         Null: { "dynamodb:LeadingKeys": "false" },
       },
     }));
@@ -185,9 +207,51 @@ export class ApplicationStack extends Stack {
       resources: [`${core.tableArn}/index/LeadListingIndex`],
     }));
     role.addToPolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:Query"],
+      resources: [core.tableArn],
+      conditions: {
+        "ForAllValues:StringLike": { "dynamodb:LeadingKeys": ["PROJECT#*"] },
+        Null: { "dynamodb:LeadingKeys": "false" },
+      },
+    }));
+    role.addToPolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:Query"],
+      resources: [`${core.tableArn}/index/WorkspaceIndex`],
+      conditions: {
+        "ForAllValues:StringLike": { "dynamodb:LeadingKeys": ["USER#*"] },
+        Null: { "dynamodb:LeadingKeys": "false" },
+      },
+    }));
+    role.addToPolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:Query"],
+      resources: [`${core.tableArn}/index/OutboxPendingIndex`],
+      conditions: {
+        "ForAllValues:StringLike": { "dynamodb:LeadingKeys": ["PROJECT#*#PENDING_TIME"] },
+        Null: { "dynamodb:LeadingKeys": "false" },
+      },
+    }));
+    role.addToPolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:ConditionCheckItem"],
+      resources: [core.tableArn],
+      conditions: {
+        "ForAnyValue:StringEquals": { "dynamodb:EnclosingOperation": ["TransactWriteItems"] },
+        "ForAllValues:StringLike": { "dynamodb:LeadingKeys": ["USER#*", "PROJECT#*"] },
+        Null: { "dynamodb:LeadingKeys": "false" },
+      },
+    }));
+    role.addToPolicy(new iam.PolicyStatement({
       actions: ["dynamodb:UpdateItem"],
       resources: [core.tableArn],
       conditions: { "ForAllValues:StringLike": { "dynamodb:LeadingKeys": ["LEAD#*"] } },
+    }));
+    role.addToPolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:UpdateItem"],
+      resources: [core.tableArn],
+      conditions: {
+        "ForAnyValue:StringEquals": { "dynamodb:EnclosingOperation": ["TransactWriteItems"] },
+        "ForAllValues:StringLike": { "dynamodb:LeadingKeys": ["PROJECT#*"] },
+        Null: { "dynamodb:LeadingKeys": "false" },
+      },
     }));
     const intakeEnabled = new CfnParameter(this, "LeadIntakeEnabled", {
       type: "String", default: "false", allowedValues: ["false", "true"],
@@ -244,6 +308,20 @@ export class ApplicationStack extends Stack {
       path: "/admin/leads/{leadId}", methods: [apigateway.HttpMethod.PATCH], integration, authorizer: jwtAuthorizer,
     });
     api.addRoutes({ path: "/leads", methods: [apigateway.HttpMethod.POST], integration });
+    for (const [path, methods] of [
+      ["/projects", [apigateway.HttpMethod.GET]],
+      ["/projects/{projectId}/assignments", [apigateway.HttpMethod.GET, apigateway.HttpMethod.POST]],
+      ["/projects/{projectId}/tasks", [apigateway.HttpMethod.GET, apigateway.HttpMethod.POST]],
+      ["/projects/{projectId}/tasks/{taskId}", [apigateway.HttpMethod.PATCH]],
+      ["/my/time-entries", [apigateway.HttpMethod.GET]],
+      ["/projects/{projectId}/time-entries", [apigateway.HttpMethod.POST]],
+      ["/projects/{projectId}/time-entries/{timeEntryId}", [apigateway.HttpMethod.PATCH]],
+      ["/projects/{projectId}/time-entries/{timeEntryId}/submit", [apigateway.HttpMethod.POST]],
+      ["/projects/{projectId}/pending-time", [apigateway.HttpMethod.GET]],
+      ["/projects/{projectId}/time-entries/{timeEntryId}/review", [apigateway.HttpMethod.POST]],
+    ] as const) {
+      api.addRoutes({ path, methods: [...methods], integration, authorizer: jwtAuthorizer });
+    }
     if (zone && certificate && config.apiDomain) {
       const domain = new apigateway.DomainName(this, "ApiDomain", { domainName: config.apiDomain, certificate });
       new apigateway.ApiMapping(this, "ApiMapping", { api, domainName: domain, stage: apiStage });

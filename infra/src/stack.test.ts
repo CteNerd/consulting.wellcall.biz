@@ -24,6 +24,14 @@ test("development foundation keeps intake closed, protects API access and provis
           ],
         },
       }),
+      Match.objectLike({
+        IndexName: "WorkspaceIndex",
+        KeySchema: [
+          { AttributeName: "GSI3PK", KeyType: "HASH" },
+          { AttributeName: "GSI3SK", KeyType: "RANGE" },
+        ],
+        Projection: { ProjectionType: "ALL" },
+      }),
     ]),
   });
   template.hasResourceProperties("AWS::S3::Bucket", {
@@ -32,6 +40,21 @@ test("development foundation keeps intake closed, protects API access and provis
     },
   });
   template.resourceCountIs("AWS::CloudFront::OriginAccessControl", 1);
+  template.hasResourceProperties("AWS::CloudFront::Function", {
+    AutoPublish: true,
+    FunctionConfig: { Runtime: "cloudfront-js-2.0" },
+  });
+  template.hasResourceProperties("AWS::CloudFront::Distribution", {
+    DistributionConfig: {
+      DefaultCacheBehavior: {
+        FunctionAssociations: [{
+          EventType: "viewer-request",
+          FunctionARN: Match.anyValue(),
+        }],
+      },
+      CustomErrorResponses: Match.absent(),
+    },
+  });
   template.resourceCountIs("AWS::Route53::RecordSet", 0);
   template.resourceCountIs("AWS::CertificateManager::Certificate", 0);
   for (const type of ["AWS::EC2::VPC", "AWS::EC2::NatGateway", "AWS::RDS::DBCluster", "AWS::Events::EventBus"]) {
@@ -46,6 +69,24 @@ test("development foundation keeps intake closed, protects API access and provis
   template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
     RouteKey: "PATCH /admin/leads/{leadId}", AuthorizationType: "JWT", AuthorizerId: Match.anyValue(),
   });
+  for (const routeKey of [
+    "GET /projects",
+    "GET /projects/{projectId}/assignments",
+    "POST /projects/{projectId}/assignments",
+    "GET /projects/{projectId}/tasks",
+    "POST /projects/{projectId}/tasks",
+    "PATCH /projects/{projectId}/tasks/{taskId}",
+    "GET /my/time-entries",
+    "POST /projects/{projectId}/time-entries",
+    "PATCH /projects/{projectId}/time-entries/{timeEntryId}",
+    "POST /projects/{projectId}/time-entries/{timeEntryId}/submit",
+    "GET /projects/{projectId}/pending-time",
+    "POST /projects/{projectId}/time-entries/{timeEntryId}/review",
+  ]) {
+    template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
+      RouteKey: routeKey, AuthorizationType: "JWT", AuthorizerId: Match.anyValue(),
+    });
+  }
   template.hasResourceProperties("AWS::Cognito::UserPoolGroup", {
     GroupName: "ConsultingAdministrators",
   });
@@ -66,7 +107,7 @@ test("development foundation keeps intake closed, protects API access and provis
   template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
     RouteKey: "POST /leads", AuthorizationType: "NONE",
   });
-  template.resourceCountIs("AWS::ApiGatewayV2::Route", 5);
+  template.resourceCountIs("AWS::ApiGatewayV2::Route", 17);
   template.hasResourceProperties("AWS::ApiGatewayV2::Stage", {
     StageName: "$default",
     DefaultRouteSettings: { ThrottlingBurstLimit: 10, ThrottlingRateLimit: 5 },
@@ -93,7 +134,9 @@ test("development foundation keeps intake closed, protects API access and provis
         Resource: { "Fn::GetAtt": [tableId, "Arn"] },
         Condition: {
           "ForAnyValue:StringEquals": { "dynamodb:EnclosingOperation": ["TransactWriteItems"] },
-          "ForAllValues:StringLike": { "dynamodb:LeadingKeys": ["LEAD#*", "IDEMPOTENCY#*", "OUTBOX#*"] },
+          "ForAllValues:StringLike": {
+            "dynamodb:LeadingKeys": ["LEAD#*", "IDEMPOTENCY#*", "OUTBOX#*", "PROJECT#*"],
+          },
           Null: { "dynamodb:LeadingKeys": "false" },
         },
       })]),
@@ -102,6 +145,11 @@ test("development foundation keeps intake closed, protects API access and provis
   assert.match(policies, /dynamodb:UpdateItem/);
   assert.match(policies, /dynamodb:Query/);
   assert.match(policies, /index\/LeadListingIndex/);
+  assert.match(policies, /index\/WorkspaceIndex/);
+  assert.match(policies, /index\/OutboxPendingIndex/);
+  assert.match(policies, /dynamodb:ConditionCheckItem/);
+  assert.match(policies, /"dynamodb:LeadingKeys":\["PROJECT#\*"\]/);
+  assert.doesNotMatch(policies, /dynamodb:LeadingKeys[^}]*FINANCE|dynamodb:LeadingKeys[^}]*RATE/);
   assert.match(policies, /"ForAllValues:StringLike":\{"dynamodb:LeadingKeys":\["LEAD#\*"\]\}/);
   assert.match(policies, /events:PutEvents/);
   assert.equal((policies.match(/events:PutEvents/g) ?? []).length, 1);
