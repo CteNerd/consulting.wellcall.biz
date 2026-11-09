@@ -40,8 +40,11 @@ test("publishing rejects missing variables, other branches, automatic events and
 
 test("preview metadata fails closed on unsafe destinations, role drift and open intake", () => {
   assert.equal(parsePreviewStack(stackMetadata(), env).webUrl, "https://previewtest.cloudfront.net");
+  assert.equal(parsePreviewStack(stackMetadata({ WebUrl: "https://dev.thirddowntech.com" }), env).webUrl,
+    "https://dev.thirddowntech.com");
   const unsafeOutputs: Array<Record<string, string>> = [
-    { WebUrl: "https://production.example" }, { WebBucket: "bucket\nOTHER=value" },
+    { WebUrl: "https://production.example" }, { WebUrl: "https://thirddowntech.com" },
+    { WebBucket: "bucket\nOTHER=value" },
     { ApiUrl: "http://api.example" }, { AuthUrl: "https://unrelated.example" },
     { WebPublishRoleArn: `${roleArn}-other` },
   ];
@@ -66,6 +69,28 @@ test("distribution verification rejects a different origin or disabled distribut
     }] } },
   } };
   verifyPreviewDistribution(distribution, release);
+  const customRelease = parsePreviewStack(stackMetadata({ WebUrl: "https://dev.thirddowntech.com" }), env);
+  const customDistribution = { Distribution: {
+    Id: customRelease.distributionId, DomainName: "previewtest.cloudfront.net", Status: "Deployed",
+    DistributionConfig: {
+      Enabled: true,
+      Aliases: { Quantity: 1, Items: ["dev.thirddowntech.com"] },
+      ViewerCertificate: {
+        ACMCertificateArn: `arn:aws:acm:us-east-1:${account}:certificate/12345678-1234-4234-8234-123456789abc`,
+        SSLSupportMethod: "sni-only",
+        MinimumProtocolVersion: "TLSv1.2_2021",
+      },
+      Origins: { Items: [{
+        DomainName: `${customRelease.bucket}.s3.us-east-1.amazonaws.com`, OriginAccessControlId: "OAC-test",
+      }] },
+    },
+  } };
+  verifyPreviewDistribution(customDistribution, customRelease);
+  customDistribution.Distribution.DistributionConfig.Aliases.Items[0] = "thirddowntech.com";
+  assert.throws(() => verifyPreviewDistribution(customDistribution, customRelease), /Custom preview hostname/);
+  customDistribution.Distribution.DistributionConfig.Aliases.Items[0] = "dev.thirddowntech.com";
+  customDistribution.Distribution.DistributionConfig.ViewerCertificate.MinimumProtocolVersion = "TLSv1.2_2019";
+  assert.throws(() => verifyPreviewDistribution(customDistribution, customRelease), /Custom preview hostname/);
   distribution.Distribution.DistributionConfig.Origins.Items[0]!.DomainName = "unrelated.s3.us-east-1.amazonaws.com";
   assert.throws(() => verifyPreviewDistribution(distribution, release), /private S3 bucket/);
   distribution.Distribution.DistributionConfig.Enabled = false;

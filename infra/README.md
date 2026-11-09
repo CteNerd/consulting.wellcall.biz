@@ -24,6 +24,15 @@ Missing or invalid target context fails. `us-east-1` is explicit.
   DynamoDB TTL only after an explicit retention value is provided.
 - Private S3 with CloudFront OAC, HTTPS redirection and security headers.
   Assets are not uploaded by synth. No broad SPA error fallback is configured.
+  A source-only viewer-request CloudFront Function rewrites GET/HEAD requests
+  for the 13 approved public pages (including a trailing slash) to `index.html`.
+  Query parameters are preserved. Unknown URLs and missing assets retain their
+  origin errors; API/internal paths are not added as public pages. New public
+  routes must update this exact allowlist alongside the frontend. The currently
+  deployed distribution has no such rewrite: a web-only publish cannot enable
+  hosted deep-link refresh. Review the infrastructure change and preserve the
+  existing development alias/certificate before deploying it; no live update
+  is authorized by this source change.
 - Invitation-only Cognito with required authenticator MFA and a public client.
   The web source includes a configuration-gated PKCE admin sign-in and inbox;
   development source now defines a hosted Cognito login domain. Production
@@ -61,8 +70,8 @@ unless its build-time API URL, approved consent copy/version and enable flag are
 present. The default stack and preview remain closed.
 
 The API's `PutItem` permission applies only within `TransactWriteItems` and only
-to `LEAD#`, `IDEMPOTENCY#` and `OUTBOX#` partition-key prefixes. Standalone puts
-are not granted.
+to `LEAD#`, `IDEMPOTENCY#`, `OUTBOX#` and workspace `PROJECT#` partition-key
+prefixes. Standalone puts and membership-record writes are not granted.
 
 The inbox UI stays unavailable unless all four HTTPS build settings are present:
 `VITE_ADMIN_AUTH_URL` (Cognito hosted UI origin), `VITE_ADMIN_API_URL`,
@@ -77,7 +86,8 @@ project creation, contact automation or finance actions. `PATCH` accepts only
 unexpired lead record atomically. Conflicts return 409 and require an explicit
 refresh, not an automatic overwrite or retry. The latest actor and update time
 are recorded on the lead without changing its TTL; no PII-bearing event is
-published. The API's UpdateItem grant is restricted to `LEAD#` partition keys.
+published. The lead-update grant is restricted to `LEAD#` partition keys;
+separate workspace updates require a transaction and `PROJECT#` keys.
 Older leads without follow-up fields read as New/version 0.
 
 The listing index is eventually consistent, so a refresh can briefly show a
@@ -89,12 +99,72 @@ unexpired records. This is read/update expiry enforcement, not verified
 physical deletion or a complete retention process.
 
 This is not yet a launch-ready intake operation: the development login domain
-is source-only and no lead notification, CAPTCHA/WAF control, owner assignment or live event-delivery
-verification exists. Do not enable intake until those operational gaps and the
-consent/retention policy are approved. Project/time/finance policies remain
-tested separately, not implemented CRUD endpoints. Future APIs must derive the
-caller from verified claims, load trusted memberships and assignments, and
-apply those policies before data access. Never authorize from request-body roles.
+is source-only and no lead notification, CAPTCHA/WAF control, owner assignment
+or live event-delivery verification exists. Do not enable intake until those
+operational gaps and the consent/retention policy are approved.
+
+## Project workspace and time (source-only)
+
+The authenticated API source now includes:
+
+- `GET /projects`, `GET|POST /projects/{projectId}/assignments`, and
+  `GET|POST /projects/{projectId}/tasks` plus
+  `PATCH /projects/{projectId}/tasks/{taskId}`.
+- `POST /projects/{projectId}/time-entries`,
+  `POST /projects/{projectId}/time-entries/{timeEntryId}/submit`,
+  `GET /my/time-entries`, `GET /projects/{projectId}/pending-time`, and
+  `POST /projects/{projectId}/time-entries/{timeEntryId}/review`.
+
+Every project request uses the verified JWT subject, then loads a separate
+active Consulting membership and a matching active project assignment from the
+core table. Cognito group claims and request-body roles do not authorize this
+slice. An administrator is identified by the trusted membership record and
+still needs an active project assignment. Contributors see only tasks assigned
+to them and may create/submit their own time against those tasks. Assigned
+managers (or an app administrator with a project assignment) can manage tasks
+and review submitted entries; the submitter cannot approve their own entry.
+Task and time transitions use expected versions and conditional transactional
+writes. Those transactions also persist actor/action audit rows without
+emitting reporting events. No rates, contracts, invoices, finance routes, or
+cross-repository data access are part of the API.
+
+The strict JSON mutation bodies are `{userId, role}` for assignment creation
+(`role` is `contributor|manager`, with manager assignment restricted to app
+administrators), `{title, description, assignedToUserId}` for task creation,
+and `{status, expectedVersion}` for task status updates (`TODO`,
+`IN_PROGRESS`, `BLOCKED`, `DONE`; `DONE` is terminal). Time draft creation
+accepts `{taskId, workDate, minutes, description}`; the project ID comes only
+from the path and the worker only from the JWT. Submit accepts only
+`{expectedVersion}`. Review accepts `{decision, expectedVersion, note?}`,
+where decision is `APPROVED|REJECTED`. Bodies reject unknown fields and have
+bounded sizes; list pages are capped at 25 projects, 50 tasks/time entries, or
+25 pending reviews.
+
+The core table uses `PROJECT#<uuid>` partitions for project metadata,
+assignments, tasks, time entries and audit rows; `USER#<subject>` partitions
+contain membership records. `WorkspaceIndex` supports bounded user-scoped
+assignment/task/time lists, while the existing pending index supports a
+bounded project review queue. Workspace writes use only `PROJECT#` keys;
+membership and project records are not created by this API. Before any
+deployment, an authorized operator would need to provision reviewed project
+and membership records and an initial manager/admin project assignment. No
+such data or user is seeded here. `WorkspaceIndex` is a proposed change to the
+existing core table: review its backfill, capacity, and change set before any
+deployment. No time-entry retention/expiry policy is implemented or approved.
+
+The source-only web entry `/?workspace` integrates these routes with the
+existing configuration-gated Cognito helper. It lists assigned projects/tasks,
+supports own time creation/submission and manager assignment/task/review
+controls, surfaces denial/conflict responses and clears state on expired
+sessions. It does not seed memberships/projects or bypass backend authorization.
+
+This is a tested, source-only slice, not a deployed workflow or
+production-readiness claim. There is no assignment-revocation UI, membership
+administration API, live Cognito/DynamoDB rehearsal, or finance implementation.
+Intake remains disabled. Never authorize from request-body roles.
+Document storage, persisted draft editing and approved-time
+correction/reversal are not implemented by this slice; do not simulate them in
+the client or describe the full C2 plan as complete.
 
 ## DNS and release gates
 
@@ -106,10 +176,14 @@ Development API stays on its generated URL. Production additionally configures
 not substitute for legal review or protected environment approval.
 
 The generated CloudFront hostname uses CloudFront's default certificate/security
-policy; the configured custom certificate uses TLS 1.2. The development preview
-publisher below supports only generated CloudFront/API URLs, with no DNS changes.
-Custom-domain publishing needs a separately reviewed extension of that validator.
-Verify delegation, certificates and the complete change set before domain writes.
+policy; the configured custom certificate uses TLS 1.2. The source publisher
+validator accepts the generated CloudFront URL or exactly
+`https://dev.thirddowntech.com`; for the custom URL it verifies the distribution
+alias and ACM/TLS configuration. This change is source-only until merged, so
+the current main workflow still uses the generated URL. The live dev alias was
+added separately with AWS CLI; current stack outputs remain generated URLs.
+Before moving the alias into CDK management, review the complete change set.
+Publishing itself never changes DNS. See the [development handoff](../docs/development-handoff-2026-11-06.md).
 
 ## Manual development web releases
 

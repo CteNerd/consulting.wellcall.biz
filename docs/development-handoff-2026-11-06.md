@@ -5,25 +5,110 @@ Scope: Consulting, Community, and the two existing personal/Founder worktrees.
 
 ## Executive status
 
-**Both producer development previews are now deployed and verified.** Their
-real publisher roles exist, both required GitHub development variables are
-configured, and the manual OIDC publishing workflows passed. Founder governance,
-release planning, API/projections and portfolio reporting/eventing are also
-provisioned in development.
+**Both producer development previews are deployed and verified.** Their real
+publisher roles exist, both required GitHub development variables are
+configured, and the manual OIDC publishing workflows passed. Development
+hostnames are now active for both previews. Founder governance, release
+planning, API/projections and portfolio reporting/eventing are also provisioned
+in development.
 
 Consulting has gated lead intake, a protected admin inbox and versioned
-follow-up statuses. Community has tested adult-approval domain rules, but still
-needs an operational application/review flow. The Founder dashboard and
-execution-permission refinements remain uncommitted in their original worktrees.
+follow-up statuses. Community now has source-only gated adult application/review,
+versioned persistence and aggregate outbox publishing; the deployed stack and
+preview do not include these changes. Founder dashboard
+[PR #10](https://github.com/CteNerd/roddy.tomlin.life/pull/10) and execution-role
+[PR #11](https://github.com/CteNerd/roddy.tomlin.life/pull/11) are now merged
+after review fixes and passing CI. The original dirty Founder worktrees remain
+preserved; their older contents must not overwrite reviewed `main`.
 
 **Public intake, enrollment and Founder owner access remain closed.** No initial
-Cognito users, production resources, custom domains or DNS changes were created.
-Merging runs CI; publishing a changed producer preview still requires manually
-dispatching `publish-development.yml` on `main`.
+Cognito users or production resources were created. Only the two approved
+development subdomains were added; production apex and API DNS remain
+unchanged. Merging runs CI; publishing a changed producer preview still
+requires manually dispatching `publish-development.yml` on `main`.
 
 The current activation sections below supersede the explicitly historical
 source-only snapshots later in this report. Feature development can resume
 without repeating this initial infrastructure bootstrap.
+
+## Development continuation
+
+The approved CUT BLOCK brand meaning is **Come Up Through Building, Learning,
+Opportunity & Competition**. Public-site work must use that exact phrase rather
+than invent a different expansion. CUT BLOCK and Third Down Technologies remain
+provisional display brands, not legal-clearance or operating-program claims.
+
+Both public sites have substantial source-only updates:
+
+- CUT BLOCK prominently explains the approved meaning, its story, technology/AI
+  and mentorship paths, the guided-practice model, readiness boundaries and six
+  FAQs. Athletics, fitness and facilities remain future concepts.
+- Third Down has 13 public routes covering small business, enterprise, five
+  service offerings, engagement options/process, about, FAQ and discovery
+  preparation. The existing gated lead/admin UI is preserved; contact
+  preparation does not collect inquiries or book appointments.
+- Both sites retain `noindex, nofollow`, closed intake/enrollment notices and
+  provisional-brand language. Production-build browser checks at 320, 390 and
+  1440 pixels found no horizontal overflow in the tested journeys; navigation
+  and keyboard FAQ interaction were exercised.
+- Community's modern foundation checks (45 tests), existing foundation linter,
+  contract pins, web build and both offline synths passed. Third Down's web
+  checks (47 tests), contract pins and web build passed. Consulting API
+  (35 tests), domain (7 tests), infrastructure (12 tests), lint and both
+  offline synths also passed.
+  Final combined foundation totals are 107 Consulting tests and 45 Community
+  tests, with no failures.
+
+These are local source/build results, not a CloudFront release. Existing
+development domains still serve the last published revision until reviewed
+changes reach `main` and its manual development publisher succeeds. The existing
+Consulting distribution has no SPA rewrite: the source now adds an exact
+13-route viewer-request rewrite, preserving queries and origin errors for
+unknown paths/assets. A web-only publish cannot enable that rewrite. A separately
+reviewed infrastructure migration must preserve its live development alias and
+certificate before hosted page refresh can be certified. Verify hosted deep
+links and served assets after release. Do not copy locally
+generated API configuration into a public artifact or bypass the publisher.
+On 2026-11-09 the owner authorized regular feature-branch commits and pushes
+to protect progress, without opening PRs. This supersedes the previous
+local-only instruction. Merge, infrastructure/web publishing, production/DNS
+and real intake/enrollment/owner activation remain separately gated.
+
+Consulting's C2 backend source now persists project assignments, tasks and own
+time drafts/submission, with manager review and no self-approval. Each request
+loads active app membership and active project assignment; writes conditionally
+check trusted state/version and add audit records. Contributor queries stay
+within their own/assigned scope. There is no finance access or new reporting
+event contract. Reviewed membership/project/initial manager data,
+`WorkspaceIndex` migration/backfill, time retention and live authenticated
+rehearsal remain gates. The authenticated `/?workspace` UI now integrates
+assigned projects/tasks, manager assignment/task controls, own time
+draft/submission and manager review. API denials and stale versions are shown
+explicitly; expired sessions clear workspace data. Persisted draft editing,
+assignment revocation, document upload and time correction/reversal are not
+implemented. These source features are not deployed. Local browser checks
+confirmed the workspace fails closed without auth configuration and has no
+horizontal overflow at 320/390/1440 pixels; authenticated paths are covered by
+tests, not a live Cognito/DynamoDB rehearsal.
+
+Local-only development servers are available at
+`http://127.0.0.1:5175/` (CUT BLOCK) and
+`http://127.0.0.1:5176/` (Third Down, with `/?workspace` for its gated entry).
+Both were checked to return HTTP 200. These loopback previews do not change
+the CloudFront sites or enable access to real project data.
+
+Community's source now also supports owner-only application status and
+version-checked withdrawal of pending applications. Applicant responses omit
+reviewer identities, screening details and contact data. Withdrawal checks
+ownership, status, version and retention expiry together, removes the review
+queue entry and emits no mentor-approval event. It does not revoke an approved
+mentor. Intake remains disabled, and these backend changes are not deployed.
+
+Founder PR review fixes separate dashboard artifacts from the public profile,
+handle expired metrics sessions, permit safe signed financial totals and refine
+the scoped execution policies. Their merge is not a deployment or permission
+to enable Founder owner access. The live resource inventory and historical
+implementation snapshots below must not be interpreted as current source state.
 
 ## Verified development activation
 
@@ -33,6 +118,34 @@ Account: `425061472162`. Region: `us-east-1`.
 | --- | --- | --- |
 | Consulting | [Development site](https://d38dz368foep1n.cloudfront.net/) / [admin entry](https://d38dz368foep1n.cloudfront.net/?admin) | [42248813337](https://github.com/CteNerd/consulting.wellcall.biz/actions/runs/42248813337) |
 | Community | [Development site](https://d3rh9e476mucty.cloudfront.net/) | [42247345620](https://github.com/CteNerd/community.wellcall.biz/actions/runs/42247345620) |
+
+### Development custom hostnames
+
+On 2026-11-06, AWS CLI changes enabled these dev-only URLs:
+
+| Application | Custom hostname | CloudFront distribution | ACM certificate |
+| --- | --- | --- | --- |
+| Consulting | [https://dev.thirddowntech.com](https://dev.thirddowntech.com/) | `E1ME23HJAUQXEW` | `arn:aws:acm:us-east-1:425061472162:certificate/f188b0ef-39b4-4020-8c95-1b11a586942f` |
+| Community | [https://dev.cutblock.org](https://dev.cutblock.org/) | `E4QU10N4MNZ30` | `arn:aws:acm:us-east-1:425061472162:certificate/9db61a17-da37-4d4a-a4a4-297344ef0d1f` |
+
+Both hostnames have DNS-validated ACM certificates in `us-east-1`, CloudFront
+aliases with TLS 1.2, and Route 53 A/AAAA aliases to their existing
+distributions. HTTPS returned 200 with certificate verification, and each
+custom hostname served byte-identical HTML to its generated CloudFront URL.
+Only the two development subdomains changed; no apex, API, or production DNS
+records were touched. CloudFormation drift detection reported `IN_SYNC` for
+both development stacks.
+
+The hostname/DNS changes were applied directly with AWS CLI; the current stack
+outputs and deployed main-branch publishers still use generated CloudFront
+URLs. The dirty source branches now allow only the corresponding exact dev
+hostname as an alternative and verify its CloudFront alias and ACM/TLS settings.
+That validator change is source-only until reviewed and merged. Before a future
+infrastructure update, review a change set and reconcile the stack and
+publisher behavior; do not deploy a default configuration that removes or
+breaks these aliases.
+Consulting Cognito callback/logout URLs also still use its generated CloudFront
+URL, so authentication redirects have not been switched to the custom hostname.
 
 Both GitHub `development` environments retain the `main` deployment branch
 policy. These exact values were set and read back:
@@ -197,7 +310,7 @@ Paths are relative to the sibling repositories' parent directory.
 | Repository/worktree | Branch | State at handoff |
 | --- | --- | --- |
 | `consulting.wellcall.biz/` | `docs/development-activation-handoff` | Report-only follow-up from merged main; deployed features are already merged. |
-| `community.wellcall.biz/` | `fix/cognito-issuer-url` | Issuer fix is merged; branch tree matches remote main. |
+| `community.wellcall.biz/` | `fix/cognito-issuer-url` | Issuer fix is merged; this session added uncommitted, source-only gated adult application/review changes. No deployment or preview publish. |
 | `roddy.tomlin.life/` | `feat/founder-execution-permissions` | Existing six-file uncommitted IAM/eventing preparation preserved, not edited or committed here. |
 | `roddy.tomlin.life-founder-dashboard/` | `feat/founder-dashboard` | Existing uncommitted dashboard/build/auth changes preserved, not edited or committed here. |
 
@@ -287,10 +400,20 @@ Relevant source:
 - Participant approval does not emit a mentor-count event.
 - Approved-mentor reporting is aggregate-only.
 - Repeated terminal decisions are prevented.
-- These are domain rules, not authenticated operational API routes or
-  persistence. Public application/enrollment remains closed.
-- Youth enrollment, guardian consent, safeguarding and verified screening
-  processes are still prerequisites, not implemented capabilities.
+- Source now includes JWT-protected adult application submission, an
+  administrator-group review inbox and version-checked eligibility, screening
+  and decision transitions. New submissions atomically write an application
+  and a 24-hour idempotency receipt; mentor decisions atomically write the
+  application update and sanitized reporting outbox event. A stream publisher
+  and scheduled reconciliation relay only strict aggregate approval events.
+- Intake is still disabled by default (blank consent version and zero retention),
+  no administrator members or application UI are provisioned, and no youth
+  routes exist. None of these source changes are deployed to the existing
+  development stack. Adding indexes/TTL/stream, routes and publisher resources
+  requires reviewed migration/change-set approval before any deployment.
+- Youth enrollment, guardian consent, safeguarding, approved consent/retention,
+  verified screening/eligibility procedures and reviewer provisioning remain
+  prerequisites to a live adult pilot.
 
 ### Personal / Founder: pending feature work
 
@@ -308,9 +431,12 @@ The dashboard worktree additionally has changes to root manifests/lockfile,
 lint/build/release configuration, infrastructure config/stack/tests, documentation,
 and the untracked `apps/founder-web/` tree.
 
-Prior recorded dashboard checks passed before this final increment; they were
-not rerun here. The next session must review and revalidate both worktrees before
-committing or combining them.
+Both Founder worktrees passed current workspace checks and tests independently.
+The dashboard worktree also passed lint, production build and release-output
+checks; a new guard rejects negative aggregate counts. No Founder stack was
+deployed, no owner subject was configured and both worktrees remain uncommitted.
+The next step is separate review/PR preparation with migration review against
+the live stack; do not merge the worktrees or resolve overlapping docs blindly.
 
 ## Development release preparation completed
 
@@ -363,8 +489,10 @@ path-fallback requirements. No initial users or group membership are created.
 Community gains no login/application UI in this slice.
 
 The two publishers remain independently owned repository implementations.
-They support generated CloudFront and API Gateway URLs only; custom-domain
-activation requires a reviewed extension and separate DNS approval.
+Their dirty source branches accept generated CloudFront URLs or the exact
+development hostname above, and validate the matching distribution alias and
+ACM/TLS configuration. Until those changes merge, the deployed main-branch
+workflows continue to use generated URLs. Publishing itself does not change DNS.
 
 ## Historical read-only environment findings (before activation)
 
@@ -467,7 +595,9 @@ remediated here. Do not run forced audit fixes or certify the legacy CRA graph.
   operator. Exercise MFA, PKCE, anonymous denial and authenticated inbox access.
 - Browser-test authenticated inbox empty/error/status-save states and refresh
   behavior against the live API. Initial landing/admin-gate and asset checks are
-  already complete. Production and DNS remain separate approvals.
+  already complete. The dev hostname is active, but Cognito callback/logout
+  URLs still use the generated CloudFront hostname; reconcile those before an
+  authenticated pilot. Production hostnames remain a separate approval.
 
 ### 3. Finish the Consulting intake operation
 
@@ -486,12 +616,20 @@ remediated here. Do not run forced audit fixes or certify the legacy CRA graph.
 
 - Approve consent, screening, eligibility verification, retention and concern
   escalation policies. Do not treat self-attestation as verified eligibility.
-- Implement gated application persistence and authenticated review actions
-  using trusted server-loaded records.
-- Wire an atomic application/decision/outbox transaction and sanitized
-  approved-mentor publishing with retry/reconciliation safeguards.
-- Add review UI, mentor/participant assignments, notifications and operational
-  tests. Keep public enrollment and all youth participation gated.
+- Source now includes gated adult application persistence, 24-hour
+  idempotency, group-gated review actions, optimistic version/expiry checks,
+  atomic decision/outbox writes and strict aggregate mentor-event delivery with
+  stream retry/DLQ and scheduled reconciliation.
+- These are not deployed: the existing Community development stack predates
+  its new table indexes/TTL/stream, routes, administrator group and publisher.
+  Review the live-table migration/change set before any update; no bootstrap or
+  publisher setup needs to be repeated.
+- Add the reviewed application/consent UI and MFA administrator review UI;
+  authorize reviewer membership only through an approved operator. Keep
+  application intake, public enrollment and all youth participation closed.
+- Run a real database concurrency/expiry rehearsal, verify SQS recovery and
+  end-to-end aggregate delivery, then evaluate assignment, notification and
+  operational escalation features after policy approval.
 
 ### 5. Preserve and complete Founder work
 

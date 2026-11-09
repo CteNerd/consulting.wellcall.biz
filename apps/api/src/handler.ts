@@ -7,6 +7,8 @@ import {
 } from "./lead-store.ts";
 import { createLeadRecord, parseLeadSubmission, type LeadReader, type LeadStatusWriter, type LeadWriter } from "./leads.ts";
 import { parseLeadStatusUpdate } from "../../../packages/domain/src/lead-follow-up.ts";
+import { handleWorkspaceRequest } from "./workspace-api.ts";
+import { DynamoWorkspaceStore, type WorkspaceStore } from "./workspace-store.ts";
 
 export type Request = APIGatewayProxyEventV2 & {
   requestContext: {
@@ -24,8 +26,10 @@ type HandlerDependencies = {
   leadWriter: LeadWriter;
   leadReader?: LeadReader;
   leadStatusWriter?: LeadStatusWriter;
+  workspaceStore?: WorkspaceStore;
   leadIntake: LeadIntakeConfig;
   now?: () => Date;
+  newId?: () => string;
 };
 
 const maxBodyBytes = 16 * 1024;
@@ -61,6 +65,12 @@ export function createApiHandler(dependencies: HandlerDependencies) {
     if (method === "POST" && event.rawPath === "/leads") {
       return submitLead(event, dependencies);
     }
+    const workspaceResponse = await handleWorkspaceRequest(event, {
+      ...(dependencies.workspaceStore ? { workspaceStore: dependencies.workspaceStore } : {}),
+      ...(dependencies.now ? { now: dependencies.now } : {}),
+      ...(dependencies.newId ? { newId: dependencies.newId } : {}),
+    });
+    if (workspaceResponse) return workspaceResponse;
     return response(404, { error: "Not found" });
   };
 }
@@ -206,6 +216,7 @@ export const handler = createApiHandler({
   leadWriter: new DynamoLeadWriter(client, process.env.CORE_TABLE_NAME ?? ""),
   leadReader: new DynamoLeadReader(client, process.env.CORE_TABLE_NAME ?? ""),
   leadStatusWriter: new DynamoLeadStatusWriter(client, process.env.CORE_TABLE_NAME ?? ""),
+  workspaceStore: new DynamoWorkspaceStore(client, process.env.CORE_TABLE_NAME ?? ""),
   leadIntake: {
     enabled: process.env.LEAD_INTAKE_ENABLED === "true",
     consentPolicyVersion: configuredConsentVersion,

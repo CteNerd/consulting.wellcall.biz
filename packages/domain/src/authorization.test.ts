@@ -8,7 +8,8 @@ const assignment: ProjectAssignment = {
 };
 
 test("project permission requires a matching active app membership and assignment", () => {
-  assert.equal(canAccessProject(member, assignment, { projectId: "assigned" }, "manage_tasks"), true);
+  assert.equal(canAccessProject(member, assignment, { projectId: "assigned" }, "read"), true);
+  assert.equal(canAccessProject(member, assignment, { projectId: "assigned" }, "manage_tasks"), false);
   assert.equal(canAccessProject(member, assignment, { projectId: "other" }, "read"), false);
   assert.equal(canAccessProject(null, assignment, { projectId: "assigned" }, "read"), false);
   assert.equal(canAccessProject(member, { ...assignment, active: false }, { projectId: "assigned" }, "read"), false);
@@ -29,4 +30,20 @@ test("assigned managers cannot approve their own time or acquire implicit financ
   assert.equal(canAccessProject(member, manager, { projectId: "assigned", workerId: member.userId }, "approve_time"), false);
   assert.equal(canAccessProject(member, manager, { projectId: "assigned", workerId: "other" }, "approve_time"), true);
   assert.equal(canAccessFinance(member), false);
+});
+
+test("contributors may update only their assigned tasks while managers and app admins manage project tasks", () => {
+  assert.equal(canAccessProject(member, assignment, { projectId: "assigned", workerId: member.userId }, "update_task"), true);
+  assert.equal(canAccessProject(member, assignment, { projectId: "assigned", workerId: "other" }, "update_task"), false);
+  assert.equal(canAccessProject(member, { ...assignment, role: "manager" }, { projectId: "assigned" }, "manage_tasks"), true);
+  assert.equal(canAccessProject({ ...member, projectAdmin: true }, assignment, { projectId: "assigned" }, "manage_tasks"), true);
+  assert.equal(canAccessProject(null, assignment, { projectId: "assigned" }, "manage_tasks"), false);
+});
+
+test("app admins still need an active matching project assignment and cannot self-approve", () => {
+  const admin = { ...member, projectAdmin: true };
+  assert.equal(canAccessProject(admin, assignment, { projectId: "assigned", workerId: "other" }, "approve_time"), true);
+  assert.equal(canAccessProject(admin, assignment, { projectId: "assigned", workerId: admin.userId }, "approve_time"), false);
+  assert.equal(canAccessProject(admin, null, { projectId: "assigned" }, "read"), false);
+  assert.equal(canAccessProject(admin, { ...assignment, active: false }, { projectId: "assigned" }, "read"), false);
 });

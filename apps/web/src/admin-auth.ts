@@ -164,8 +164,7 @@ export function createAdminAuth(
   }
 
   function signOut(): void {
-    accessToken = undefined;
-    storage.removeItem(pendingAuthKey);
+    clearSession();
     const logout = new URL("/logout", configuration.authUrl);
     logout.search = new URLSearchParams({
       client_id: configuration.clientId,
@@ -174,10 +173,16 @@ export function createAdminAuth(
     location.assign(logout.href);
   }
 
+  function clearSession(): void {
+    accessToken = undefined;
+    storage.removeItem(pendingAuthKey);
+  }
+
   return Object.freeze({
     beginSignIn,
     completeSignIn,
     getAccessToken: () => accessToken,
+    clearSession,
     signOut,
   });
 }

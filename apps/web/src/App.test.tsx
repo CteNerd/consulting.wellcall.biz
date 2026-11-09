@@ -11,10 +11,10 @@ test("preview has accessible navigation and no premature inquiry or payment coll
   render(<App />);
   expect(screen.getByRole("navigation", { name: "Main navigation" })).toBeDefined();
   expect(screen.getByRole("heading", { level: 1 }).textContent).toContain("game plan");
-  expect(screen.getByText("Rethink. Create. Transform.")).toBeDefined();
+  expect(screen.getAllByText("Rethink. Create. Transform.").length).toBeGreaterThan(0);
   expect(screen.getByRole("link", { name: "Skip to content" }).getAttribute("href")).toBe("#main");
   expect(document.querySelector("form")).toBeNull();
-  expect(screen.getByText(/inquiries are not open in this preview/)).toBeDefined();
+  expect(screen.getByText(/Intake is closed in this preview/)).toBeDefined();
 });
 
 test("admin route exposes no inbox or sign-in when required settings are absent", () => {
