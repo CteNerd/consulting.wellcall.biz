@@ -35,8 +35,8 @@ Missing or invalid target context fails. `us-east-1` is explicit.
   is authorized by this source change.
 - Invitation-only Cognito with required authenticator MFA and a public client.
   The web source includes a configuration-gated PKCE admin sign-in and inbox;
-  development source now defines a hosted Cognito login domain. Production
-  still has no login domain; neither environment provisions initial users.
+  both environments define a hosted Cognito login domain. Neither environment
+  provisions initial users or memberships. A public brand does not open access.
 - Node 24 API and outbox-publisher Lambdas with separate scoped roles and
   7/30-day dev/prod logs.
 - HTTP API: public `GET /health` and `POST /leads`, JWT-protected `GET /me`,
@@ -210,8 +210,14 @@ explicitly.
 
 ## DNS and release gates
 
-By default no Route 53 or ACM resources are created; generated service URLs are
-outputs. Opt-in `customDomains=true` imports the existing zone by ID, creates
+By default no Route 53 or ACM resources are created. In account `425061472162`,
+development **imports** the existing certificate
+`arn:aws:acm:us-east-1:425061472162:certificate/f188b0ef-39b4-4020-8c95-1b11a586942f`
+and preserves `dev.thirddowntech.com`, even with `customDomains=false`.
+`existingDevCertificateArn` can explicitly supply an existing same-account
+us-east-1 certificate for a development target. This mode never recreates or
+adopts the pre-existing DNS records or certificate; do not bootstrap dev again.
+Other default synths retain generated URLs. Opt-in `customDomains=true` imports the existing zone by ID, creates
 the web ACM certificate in `us-east-1`, and manages only explicit web aliases.
 Development API stays on its generated URL. Production additionally configures
 `api.thirddowntech.com` and requires `brandLaunchApproved=true`; that flag does
@@ -221,10 +227,8 @@ The generated CloudFront hostname uses CloudFront's default certificate/security
 policy; the configured custom certificate uses TLS 1.2. The source publisher
 validator accepts the generated CloudFront URL or exactly
 `https://dev.thirddowntech.com`; for the custom URL it verifies the distribution
-alias and ACM/TLS configuration. This change is source-only until merged, so
-the current main workflow still uses the generated URL. The live dev alias was
-added separately with AWS CLI; current stack outputs remain generated URLs.
-Before moving the alias into CDK management, review the complete change set.
+alias and ACM/TLS configuration. The development UPDATE must use the imported certificate path above, not create
+another certificate or DNS records. Review the complete change set.
 Publishing itself never changes DNS. See the [development handoff](../docs/development-handoff-2026-11-06.md).
 
 ## Manual development web releases
@@ -293,3 +297,101 @@ because current CDK declarations implement optional interface fields as explicit
 `undefined`; app/API/domain checks retain it. Dependency auditing reports
 moderate upstream minimatch advisories; high/critical findings block CI. This
 does not certify the preserved legacy CRA dependency graph.
+
+## Protected production web promotion
+
+Public brand publication is approved; intake, enrollment, initial users and
+Founderowner access remain closed pending real UAT. This PR supplies source
+only. It does not deploy infrastructure, configure GitHub environments or
+change AWS/DNS. The parent operator owns reviewed bootstrap/change sets.
+
+`Promote reviewed production web candidate` is manual and main-only. Supply the
+full reviewed `main` SHA as `reviewed_sha`; it must match the dispatch SHA.
+The candidate job installs only modern workspaces on Node 24/npm 11.6.2,
+runs checks once, builds once with explicit production presentation, and
+leaves all intake/consent/API/auth settings disabled or empty.
+The immutable artifact contains only `index.html`, hashed JS/CSS assets and a
+SHA-256 inventory manifest bound to repository, reviewed SHA and run ID.
+Its exact artifact ID and manifest digest pass to both protected jobs.
+Both verify every byte, inventory and provenance before OIDC; neither rebuilds.
+
+The `development` job uses only the dev publisher and verifies account, stack,
+private bucket/OAC, alias/certificate, API health, anonymous 401s, disabled intake,
+HTML/deep links, every emitted asset and missing-path errors. It requires the
+dev `X-Robots-Tag: noindex, nofollow` header **before** writing public-candidate
+bytes. Infrastructure must install that header and the exact-route function
+first. `production` depends on the successful stage and uses only its own
+protected-environment publisher with the same scoped policy/boundary.
+The production origin must be exactly `https://thirddowntech.com`.
+No broad SPA fallback, delete sync, identity/data writes or cross-env role
+assumption is permitted.
+
+### Operator prerequisites and commands (not executed here)
+
+Keep the existing GitHub OIDC provider and dev bootstrap; do not duplicate them.
+Both GitHub environments require a `main` deployment-branch restriction;
+`production` must require independent reviewer approval with no self-approval
+or administrator bypass. Configure `AWS_WEB_PUBLISH_ROLE_ARN` in **each**
+environment from that stack's `WebPublishRoleArn`. The new promotion workflow
+fixes account `425061472162`; the existing development publisher additionally
+uses its backwards-compatible `AWS_ACCOUNT_ID` environment variable.
+No static AWS credentials, secrets or client secrets are required.
+
+From the repository root, offline synthesis (no lookup or deployment):
+
+```sh
+npm exec --workspace @rct/consulting-infra -- cdk synth \
+  -c environment=development -c account=425061472162 \
+  -c existingDevCertificateArn=arn:aws:acm:us-east-1:425061472162:certificate/f188b0ef-39b4-4020-8c95-1b11a586942f \
+  --output cdk.out/review-development --quiet
+npm exec --workspace @rct/consulting-infra -- cdk synth \
+  -c environment=production -c account=425061472162 \
+  -c customDomains=true -c brandLaunchApproved=true \
+  --output cdk.out/review-production --quiet
+```
+
+After separate IAM/bootstrap review and the portfolio event-bus SSM prerequisites,
+the parent may prepare **non-executing** change sets from these assemblies:
+
+```sh
+npm exec --workspace @rct/consulting-infra -- cdk deploy \
+  --app cdk.out/review-development rct-consulting-development-foundation \
+  --method prepare-change-set --change-set-name consulting-development-public-source \
+  --parameters LeadIntakeEnabled=false --require-approval broadening
+npm exec --workspace @rct/consulting-infra -- cdk deploy \
+  --app cdk.out/review-production rct-consulting-production-foundation \
+  --method prepare-change-set --change-set-name consulting-production-public-source \
+  --parameters LeadIntakeEnabled=false --require-approval broadening
+```
+
+These deploy commands are operator-only and still write AWS change sets/assets;
+they were **not run by this agent**. Inspect the complete change set before
+separately authorizing execution. Dev must preserve the existing distribution,
+alias/certificate, pool, bucket and table, with no DNS adoption; production
+creates its apex/API DNS and certificate only under the explicit flags above.
+Never deploy the synthetic account assemblies or seed users as part of release.
+No additional dev bootstrap is needed. Production may require separately
+reviewed trust/bootstrap setup; web publisher roles cannot perform it.
+
+### Provenance and rollback
+
+Candidate and per-environment promotion artifacts are retained for 90 days
+(subject to repository retention policy). Promotion records include reviewed
+SHA, run/attempt, manifest digest, distribution and invalidation IDs. Each
+environment artifact also captures the previous `index.html` when present,
+including on a later verification failure. Old hashed assets remain in S3.
+Download/archive approved artifacts before expiry if longer recovery is needed.
+
+For exact-byte rollback while the original candidate artifact remains retained,
+an authorized operator may re-run **only the production job** of the selected
+previous successful workflow run through its protected production approval.
+It uses that run's original artifact ID, digest and successful development
+stage, never rebuilds, and rechecks present-day backend/intake/destination gates.
+Verify the old SHA, artifact/digest and prior staging evidence before approval;
+this is an intentional rollback, not a bypass for a new unreviewed candidate.
+Do not re-run the candidate job over an existing immutable artifact name.
+Expired/missing artifacts fail closed: use a reviewed revert/new candidate
+instead, or separately review restoration of the captured prior entry point
+against retained assets. No stack deletion, broad identity, automatic rollback
+or tested live recovery is implied. Real UAT and recovery rehearsal remain
+required before opening collection or access.

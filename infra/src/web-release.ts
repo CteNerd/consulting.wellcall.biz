@@ -105,6 +105,11 @@ export function verifyPreviewDistribution(value: unknown, release: Pick<PreviewR
     }
   }
   const origins = isRecord(config) && isRecord(config.Origins) ? config.Origins.Items : undefined;
+  const errorResponses = isRecord(config) ? config.CustomErrorResponses : undefined;
+  if (errorResponses !== undefined && (!isRecord(errorResponses) || errorResponses.Quantity !== 0
+    || (errorResponses.Items !== undefined && (!Array.isArray(errorResponses.Items) || errorResponses.Items.length !== 0)))) {
+    throw new Error("Web releases forbid custom error fallbacks");
+  }
   if (!isRecord(config) || config.Enabled !== true || !Array.isArray(origins) || origins.length !== 1
     || !isRecord(origins[0])
     || origins[0].DomainName !== `${release.bucket}.s3.us-east-1.amazonaws.com`

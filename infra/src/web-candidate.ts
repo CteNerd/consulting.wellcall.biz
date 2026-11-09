@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { appendFileSync, lstatSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { appendFileSync, lstatSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const digest = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
@@ -47,7 +47,7 @@ export function verifyCandidate(directory: string, expectedDigest: string, sourc
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   const [operation, directory, sourceSha, runId, expectedDigest] = process.argv.slice(2);
   if (!directory || !sourceSha || !runId) throw new Error("Candidate directory, SHA and run ID are required");
   if (operation === "create") {

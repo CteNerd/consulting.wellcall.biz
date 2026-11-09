@@ -1,0 +1,189 @@
+name: Promote reviewed production web candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      reviewed_sha:
+        description: Full reviewed main SHA (must equal the dispatch SHA)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-production-promotion
+  cancel-in-progress: false
+
+jobs:
+  candidate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      manifest_sha256: ${{ steps.manifest.outputs.manifest_sha256 }}
+      artifact_id: ${{ steps.artifact.outputs.artifact-id }}
+    steps:
+      - name: Require the reviewed dispatch SHA
+        env:
+          REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+        run: |
+          test "$GITHUB_REPOSITORY" = "CteNerd/consulting.wellcall.biz"
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$REVIEWED_SHA" = "$GITHUB_SHA"
+          [[ "$REVIEWED_SHA" =~ ^[a-f0-9]{40}$ ]]
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm install --global npm@11.6.2 --no-audit --no-fund
+      - run: npm ci --workspaces --include-workspace-root=false --no-audit --no-fund
+      - run: npm run lint --workspace @rct/consulting-infra
+      - run: npm run check:foundation
+      - run: node packages/contracts/src/verify-pin.ts
+      - run: npm audit --workspaces --include-workspace-root=false --audit-level=high
+      - name: Build once with public branding and closed collection/access
+        run: npm run build:web
+        env:
+          VITE_PUBLIC_PRESENTATION: production
+          VITE_PUBLIC_ORIGIN: https://thirddowntech.com
+          VITE_LEAD_INTAKE_ENABLED: "false"
+          VITE_LEAD_CONSENT_POLICY_VERSION: ""
+          VITE_LEAD_CONSENT_COPY: ""
+          VITE_API_URL: ""
+          VITE_ADMIN_AUTH_URL: ""
+          VITE_ADMIN_API_URL: ""
+          VITE_ADMIN_CLIENT_ID: ""
+          VITE_ADMIN_USER_POOL_ID: ""
+          VITE_ENABLE_UAT_REHEARSAL: ""
+      - name: Bind the immutable candidate to this reviewed source and run
+        id: manifest
+        run: |
+          mkdir candidate
+          cp -R apps/web/dist/. candidate/
+          node infra/src/web-candidate.ts create candidate "$GITHUB_SHA" "$GITHUB_RUN_ID"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        id: artifact
+        with:
+          name: production-candidate-${{ github.sha }}-${{ github.run_id }}
+          path: candidate/
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+
+  stage:
+    needs: candidate
+    if: github.ref == 'refs/heads/main'
+    environment: development
+    concurrency:
+      group: web-development
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      AWS_REGION: us-east-1
+      AWS_ACCOUNT_ID: "425061472162"
+      AWS_WEB_PUBLISH_ROLE_ARN: ${{ vars.AWS_WEB_PUBLISH_ROLE_ARN }}
+      RELEASE_ENVIRONMENT: development
+      CANDIDATE_MANIFEST_SHA256: ${{ needs.candidate.outputs.manifest_sha256 }}
+      AWS_PAGER: ""
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.candidate.outputs.artifact_id }}
+          path: candidate/
+          merge-multiple: true
+      - name: Verify the exact candidate before acquiring scoped AWS credentials
+        run: |
+          node infra/src/web-candidate.ts verify candidate "$GITHUB_SHA" "$GITHUB_RUN_ID" "$CANDIDATE_MANIFEST_SHA256"
+          node infra/src/check-web-release.ts environment
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_WEB_PUBLISH_ROLE_ARN }}
+          aws-region: us-east-1
+          allowed-account-ids: "425061472162"
+          role-duration-seconds: 1800
+          mask-aws-account-id: true
+      - name: Stage and verify bytes, health, closed intake, 401s, assets and exact routing
+        run: bash .github/scripts/promote-web.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: development-promotion-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .release/manifest.json
+            .release/promotion.json
+            .release/previous-index.html
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 90
+
+  production:
+    needs: [candidate, stage]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    concurrency:
+      group: web-production
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      AWS_REGION: us-east-1
+      AWS_ACCOUNT_ID: "425061472162"
+      AWS_WEB_PUBLISH_ROLE_ARN: ${{ vars.AWS_WEB_PUBLISH_ROLE_ARN }}
+      RELEASE_ENVIRONMENT: production
+      CANDIDATE_MANIFEST_SHA256: ${{ needs.candidate.outputs.manifest_sha256 }}
+      AWS_PAGER: ""
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.candidate.outputs.artifact_id }}
+          path: candidate/
+          merge-multiple: true
+      - name: Verify the same staged candidate before acquiring production credentials
+        run: |
+          node infra/src/web-candidate.ts verify candidate "$GITHUB_SHA" "$GITHUB_RUN_ID" "$CANDIDATE_MANIFEST_SHA256"
+          node infra/src/check-web-release.ts environment
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_WEB_PUBLISH_ROLE_ARN }}
+          aws-region: us-east-1
+          allowed-account-ids: "425061472162"
+          role-duration-seconds: 1800
+          mask-aws-account-id: true
+      - name: Promote the verified bytes without rebuilding
+        run: bash .github/scripts/promote-web.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: production-promotion-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .release/manifest.json
+            .release/promotion.json
+            .release/previous-index.html
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 90

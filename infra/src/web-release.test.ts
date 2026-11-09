@@ -112,6 +112,12 @@ test("distribution verification rejects a different origin or disabled distribut
   assert.throws(() => verifyPreviewDistribution(distribution, release), /private S3 bucket/);
   distribution.Distribution.DistributionConfig.Enabled = false;
   assert.throws(() => verifyPreviewDistribution(distribution, release));
+  assert.throws(() => verifyPreviewDistribution({
+    Distribution: { ...distribution.Distribution, DistributionConfig: {
+      ...distribution.Distribution.DistributionConfig, Enabled: true,
+      CustomErrorResponses: { Quantity: 1, Items: [{ ErrorCode: 403, ResponsePagePath: "/index.html", ResponseCode: "200" }] },
+    } },
+  }, release), /custom error fallbacks/);
   verifyPreviewHealth({ status: "ok", application: "consulting" });
   assert.throws(() => verifyPreviewHealth({ status: "ok", application: "dotcom" }));
 });

@@ -41,6 +41,16 @@ test("public SEO requires explicit presentation, never just a production build, 
   expect(() => presentation({ VITE_PUBLIC_ORIGIN: env.VITE_PUBLIC_ORIGIN })).toThrow(/SEO origin/);
 });
 
+test.each(["workspace", "admin"])("production %s entry remains closed without preview wording", (query) => {
+  vi.stubEnv("VITE_PUBLIC_PRESENTATION", "production");
+  window.history.replaceState(null, "", `/?${query}`);
+  render(<App />);
+  expect(document.body.textContent).not.toMatch(/preview|provisional/i);
+  expect(document.body.textContent).toMatch(/not configured/i);
+  expect(document.querySelector("form, input, textarea")).toBeNull();
+  expect(screen.queryByRole("button", { name: /sign in/i })).toBeNull();
+});
+
 test.each(publicRoutes)("public route %s has a coherent, connected and closed preview", (path) => {
   window.history.replaceState(null, "", path);
   render(<App />);

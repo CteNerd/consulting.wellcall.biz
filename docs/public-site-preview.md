@@ -1,9 +1,10 @@
 # Third Down Technologies public-site preview
 
 The modern public frontend is `apps/web`, not the historical CRA `src` tree.
-This is a non-production content and design implementation. Third Down
-Technologies / Third Down Tech remains a provisional display brand. It is not
-a legal identity, launch approval or authorization to change hosting or DNS.
+The default remains a development preview. Public publication of Third Down
+Technologies / Third Down Tech is approved separately from opening intake or
+access; production presentation does not assert legal clearance or outcomes.
+This source change is not an authorization for the agent to change hosting/DNS.
 The current portfolio implementation plan supersedes the older `master` and
 `staging` assumptions; this work changes neither branches nor environments.
 
@@ -79,8 +80,14 @@ certificates.
   editable; assignment revocation, review reversal, and document upload are not
   implemented UI actions. Bootstrap membership/project/manager records and the
   `WorkspaceIndex` migration remain reviewed operational gates.
-- The HTML `noindex, nofollow` guard remains. Titles explicitly say development
-  preview. No canonical domain, structured legal identity, social profile,
+- Default HTML retains `noindex, nofollow` and development-preview titles.
+  Production requires explicit `VITE_PUBLIC_PRESENTATION=production`, not
+  Vite's normal production-build flag. It removes preview/provisional language
+  and the HTML noindex guard. Optional `VITE_PUBLIC_ORIGIN` must be exactly
+  `https://thirddowntech.com`; it adds a canonical URL and updates it per route,
+  never from the browser's potentially-dev origin. Dev CloudFront response
+  headers keep staged production candidates noindex independently of HTML.
+  No structured legal identity, social profile,
   tracking code or speculative social image was added.
 - Service deliverables are illustrative and scoped through discovery. There
   are no customer claims, testimonials, savings percentages, credentials,
@@ -134,8 +141,11 @@ The existing infrastructure-owned ESLint configuration already covers applicatio
 TypeScript. Reusing its installed tool does not modify infrastructure or add
 dependencies. `check` runs TypeScript and the full frontend test suite.
 
-Before any public release, obtain human desktop/mobile design and content
-approval; verify keyboard menu, FAQ and skip-link behavior; confirm brand/legal
-clearance, approved contact and consent content, intake readiness and hosted
-deep-link handling. This preview is not release approval. No generated imagery,
+Before promoting public bytes, verify desktop/mobile content, keyboard menu,
+FAQ and skip-link behavior and hosted deep links. Brand publication approval
+does not establish legal clearance or intake readiness. Keep intake, enrollment
+and Founderowner access closed until real UAT and separate authorization;
+do not fabricate contact/consent content. See the production promotion runbook
+in `infra/README.md` for exact immutable-artifact and protected-environment gates.
+No generated imagery,
 external font service or third-party image request is used.

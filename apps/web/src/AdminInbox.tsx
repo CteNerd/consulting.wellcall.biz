@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { createAdminAuth, readAdminAuthConfiguration } from "./admin-auth.ts";
+import { publicCopy } from "./presentation.ts";
 import { isLeadStatus, leadStatusLabels, type LeadFollowUp, type LeadStatus } from "../../../packages/domain/src/lead-follow-up.ts";
 
 type LeadRecord = LeadFollowUp & {
@@ -156,7 +157,7 @@ export function AdminInbox() {
       <a className="skip" href="#admin-main">Skip to inbox</a>
       <header>
         <p className="wordmark">Consulting lead inbox</p>
-        <nav aria-label="Admin navigation"><a href="/">Return to preview</a></nav>
+        <nav aria-label="Admin navigation"><a href="/">{publicCopy("Return to public site", "Return to preview")}</a></nav>
       </header>
       <main id="admin-main" className="admin-inbox">
         <p className="eyebrow">Private workspace</p>

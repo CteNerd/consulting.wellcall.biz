@@ -308,6 +308,7 @@ test("a manager can create an assignment and task through the existing API", asy
     description: "Check rollout steps.",
     assignedToUserId: "worker_3",
   });
+  await waitFor(() => expect((screen.getByRole("button", { name: "Create task" }) as HTMLButtonElement).disabled).toBe(false));
   fireEvent.change(screen.getByLabelText("Task status"), { target: { value: "IN_PROGRESS" } });
   fireEvent.click(screen.getByRole("button", { name: "Save task status" }));
   expect(await screen.findByText("Task status saved.")).toBeDefined();
