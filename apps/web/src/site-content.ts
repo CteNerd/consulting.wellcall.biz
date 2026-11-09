@@ -173,7 +173,7 @@ export const stages = [
 export const faqs = [
   {
     question: "Are inquiries or discovery bookings open?",
-    answer: "No. This is a development preview with a provisional brand. Public intake and discovery booking are closed. There is no live scheduling link, payment collection or promised response window.",
+    answer: "No. Public intake and discovery booking are closed. There is no live scheduling link, payment collection or promised response window.",
   },
   {
     question: "Do I need to know which service I need?",
@@ -189,7 +189,7 @@ export const faqs = [
   },
   {
     question: "How are scope, pricing and timelines decided?",
-    answer: "They depend on the work, dependencies, risks and available capacity. Discovery should produce enough clarity to agree deliverables, assumptions, acceptance criteria and an estimate. This preview does not publish rates, deposits, payment terms or delivery guarantees.",
+    answer: "They depend on the work, dependencies, risks and available capacity. Discovery should produce enough clarity to agree deliverables, assumptions, acceptance criteria and an estimate. This site does not publish rates, deposits, payment terms or delivery guarantees.",
   },
   {
     question: "Can you improve an existing system instead of replacing it?",

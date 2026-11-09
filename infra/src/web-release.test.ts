@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -36,6 +35,24 @@ test("publishing rejects missing variables, other branches, automatic events and
     { GITHUB_REF: "refs/heads/feature" }, { GITHUB_EVENT_NAME: "push" },
     { GITHUB_REPOSITORY: "other/repo" }, { AWS_WEB_PUBLISH_ROLE_ARN: roleArn.replaceAll("development", "production") },
   ]) assert.throws(() => validateReleaseEnvironment({ ...env, ...override }));
+});
+
+test("explicit production release is confined to the real account, production role and approved origin", () => {
+  const productionEnv = {
+    ...env, RELEASE_ENVIRONMENT: "production", AWS_ACCOUNT_ID: "425061472162",
+    AWS_WEB_PUBLISH_ROLE_ARN: "arn:aws:iam::425061472162:role/rct/consulting/production/rct-consulting-production-web-publish",
+  };
+  const metadata = JSON.parse(JSON.stringify(stackMetadata({ WebUrl: "https://thirddowntech.com" }))
+    .replaceAll(account, "425061472162").replaceAll("development", "production")) as unknown;
+  assert.equal(parsePreviewStack(metadata, productionEnv).webUrl, "https://thirddowntech.com");
+  for (const override of [
+    { RELEASE_ENVIRONMENT: "staging" }, { AWS_ACCOUNT_ID: account },
+    { AWS_WEB_PUBLISH_ROLE_ARN: roleArn }, { GITHUB_REF: "refs/heads/feature" },
+  ]) assert.throws(() => validateReleaseEnvironment({ ...productionEnv, ...override }));
+  assert.throws(() => parsePreviewStack(stackMetadata(), productionEnv));
+  assert.throws(() => verifyPreviewDistribution({}, {
+    bucket: "test", distributionId: "E123456789TEST", webUrl: "https://dev.thirddowntech.com",
+  }, productionEnv), /approved custom origin/);
 });
 
 test("preview metadata fails closed on unsafe destinations, role drift and open intake", () => {
@@ -117,7 +134,8 @@ test("bucket verification requires every public-access block and an explicitly n
 });
 
 test("release CLI emits only validated build inputs and exits unsuccessfully when configuration is absent", (t) => {
-  const directory = mkdtempSync(join(tmpdir(), "consulting-release-test-"));
+  const directory = join(import.meta.dirname, `../.release-test-${process.pid}`);
+  mkdirSync(directory);
   t.after(() => rmSync(directory, { recursive: true }));
   const metadataPath = join(directory, "stack.json");
   const environmentPath = join(directory, "github-env");

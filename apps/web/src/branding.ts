@@ -3,5 +3,4 @@ export const brand = {
   shortName: "Third Down Tech",
   philosophy: "Rethink. Create. Transform.",
   legacyDomain: "consulting.wellcall.biz",
-  status: "provisional",
 } as const;

@@ -4,11 +4,41 @@ import { App } from "./App.tsx";
 import { brand } from "./branding.ts";
 import { publicRoutes } from "./PublicSite.tsx";
 import { services } from "./site-content.ts";
+import { presentation, presentationHtml } from "./presentation.ts";
 
 afterEach(() => {
   cleanup();
   vi.unstubAllEnvs();
+  document.querySelector('link[rel="canonical"]')?.remove();
   window.history.replaceState(null, "", "/");
+});
+
+test.each(publicRoutes)("explicit production presentation at %s publishes the brand, not intake", (path) => {
+  vi.stubEnv("VITE_PUBLIC_PRESENTATION", "production");
+  vi.stubEnv("VITE_PUBLIC_ORIGIN", "https://thirddowntech.com");
+  window.history.replaceState(null, "", path);
+  render(<App />);
+  expect(document.title).toContain(brand.name);
+  expect(document.title).not.toMatch(/preview|provisional/i);
+  expect(document.body.textContent).not.toMatch(/preview|provisional|launch remains subject/i);
+  expect(document.body.textContent).toMatch(/intake.*closed/i);
+  expect(document.querySelector("form, input, textarea")).toBeNull();
+  expect(document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.href)
+    .toBe(`https://thirddowntech.com${path}`);
+  expect(screen.queryByRole("link", { name: "Admin inbox" })).toBeNull();
+});
+
+test("public SEO requires explicit presentation, never just a production build, and a safe origin", () => {
+  const html = '<head>\n    <meta name="robots" content="noindex, nofollow" />\n<title>Third Down Technologies | Development preview</title></head>';
+  expect(presentation({ PROD: true }).publicBrand).toBe(false);
+  expect(presentationHtml(html, { PROD: true })).toBe(html);
+  const env = { VITE_PUBLIC_PRESENTATION: "production", VITE_PUBLIC_ORIGIN: "https://thirddowntech.com" };
+  expect(presentationHtml(html, env)).not.toMatch(/noindex|preview/i);
+  expect(presentationHtml(html, env)).toContain('href="https://thirddowntech.com/"');
+  for (const origin of ["https://dev.thirddowntech.com", "https://evil.example", 'https://thirddowntech.com/"']) {
+    expect(() => presentation({ ...env, VITE_PUBLIC_ORIGIN: origin })).toThrow(/SEO origin/);
+  }
+  expect(() => presentation({ VITE_PUBLIC_ORIGIN: env.VITE_PUBLIC_ORIGIN })).toThrow(/SEO origin/);
 });
 
 test.each(publicRoutes)("public route %s has a coherent, connected and closed preview", (path) => {

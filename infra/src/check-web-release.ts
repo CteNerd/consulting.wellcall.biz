@@ -34,7 +34,7 @@ if (operation === "environment") {
     }
     verifyPreviewDistribution(value, {
       bucket: PREVIEW_BUCKET, distributionId: PREVIEW_DISTRIBUTION_ID, webUrl: PREVIEW_WEB_URL,
-    });
+    }, process.env);
     console.info("Private development distribution validated");
   } else if (operation === "health") {
     verifyPreviewHealth(value);
