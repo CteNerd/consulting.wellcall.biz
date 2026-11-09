@@ -34,6 +34,48 @@ without repeating this initial infrastructure bootstrap.
 
 ## Development continuation
 
+### What still blocks production promotion (2026-11-09)
+
+The owner has authorized addressing the current PR reviews and merging after
+validation. That is not authorization to provision production, change DNS or
+open intake, enrollment or Founder owner access.
+
+Separate a **public-site launch with collection closed** from **live workflow
+activation**. Neither requires completing every future C2/D2 feature:
+
+- The producer publisher currently supports manual development **web assets**
+  only. There is no production promotion workflow for the new applications.
+  Founder's existing production publisher releases the public profile, not
+  the separate Founder artifact or portfolio infrastructure.
+- Reviewed source still needs a development infrastructure/API migration:
+  Consulting's `WorkspaceIndex` and exact public deep-link rewriting;
+  Community's application/review/outbox infrastructure, hosted login and exact
+  internal route. Preserve the existing development aliases/certificates and
+  reconcile Cognito callback/logout and CORS allowlists before deploying.
+  Publishing HTML alone does not install these changes.
+- A production release needs separately scoped resources/roles/configuration,
+  approved apex/API domain and certificate changes, a tested development
+  candidate and traceable promotion/rollback. Preview/noindex/provisional
+  content must not silently become the approved production presentation.
+  Read-only GitHub checks confirmed reviewer-protected `production`
+  environments already exist in all three repositories; their absence or a
+  GitHub-plan limitation is not the blocker. The separate existing profile
+  `aws-production` environment has branch restrictions but no reviewer rule;
+  do not treat it as the protected new-Founder promotion path.
+- Real workflows additionally require approved memberships/assignments,
+  Founder owner/MFA provisioning, consent/retention/readiness decisions and
+  live authentication, access-denial and event-delivery/recovery UAT.
+  Synthetic browser flows and isolated database tests do not prove these.
+- Operational acceptance still needs notification/budget delivery evidence,
+  monitoring/DLQ recovery, rollback/restore evidence and explicit public-brand/
+  operating approval. Source CI is not evidence that these live gates passed.
+
+The shortest safe route is reviewed merges, a controlled development migration
+and hosted smoke/UAT, then an explicitly approved marketing-only production
+launch with collection/access still closed. Activate real-user workflows
+separately after their data/access/operating gates pass. Do not repeat the
+already completed development bootstrap.
+
 ### Local acceptance rehearsals now available
 
 Use synthetic data only. Do not enter real client/participant details, clinical
@@ -75,7 +117,7 @@ or a regulatory-compliance claim.
   that AI is not compliance. No customer/person attribution or regulated-system
   certification is published.
 
-Current source validation: Consulting 115 foundation tests and Community
+Current source validation: Consulting 119 foundation tests and Community
 59 foundation tests passed, with lint, pins, production builds and both offline
 environment synths. Founder workspace checks and 42 UI/profile/release-boundary
 tests passed. Real DynamoDB Local integration evidence is recorded below;
@@ -176,10 +218,10 @@ Both public sites have substantial source-only updates:
   and keyboard FAQ interaction were exercised.
 - Community's modern foundation checks (59 tests), existing foundation linter,
   contract pins, web build and both offline synths passed. Third Down's web
-  checks (50 tests), contract pins and web build passed. Consulting API
-  (39 tests), domain (8 tests), infrastructure (12 tests), lint and both
+  checks (53 tests), contract pins and web build passed. Consulting API
+  (39 tests), domain (9 tests), infrastructure (12 tests), lint and both
   offline synths also passed.
-  Current combined foundation totals are 115 Consulting tests and 59 Community
+  Current combined foundation totals are 119 Consulting tests and 59 Community
   tests, with no failures.
 
 These are local source/build results, not a CloudFront release. Existing
