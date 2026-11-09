@@ -28,8 +28,10 @@ Cognito users were created. Production provisioning and public branding are now
 owner-approved. Third Down's production website and API are live after an
 explicitly approved protected promotion. CUT BLOCK's production website and API
 are also live after separate exact-candidate approval. Founder production API
-is healthy with owner access disabled; reporting and frontend release gates
-remain pending. Merging runs CI, not an automatic production deployment.
+and reporting are deployed, and its `/founder/` frontend is live after separate
+exact-candidate approval, with sign-in and owner access disabled. The existing
+personal profile remains byte-identical. Merging runs CI, not an automatic
+production deployment.
 
 The current activation sections below supersede the explicitly historical
 source-only snapshots later in this report. Feature development can resume
@@ -37,7 +39,7 @@ without repeating this initial infrastructure bootstrap.
 
 ## Development continuation
 
-### Approved production rollout in progress (2026-11-09)
+### Verified public production rollout (2026-11-09)
 
 The owner explicitly approved all three applications and backend infrastructure,
 publication of the current branding, and production domains `thirddowntech.com`
@@ -58,8 +60,11 @@ Reviewed production source:
   main `524456e7c5d83168defa9c2e3370912f22725ce4`.
 - Community [PR #8](https://github.com/CteNerd/community.wellcall.biz/pull/8),
   main `5ccbc6fdb52aa1c920008163c230757e77f74bb7`.
-- Founder permission repairs through [PR #16](https://github.com/CteNerd/roddy.tomlin.life/pull/16),
-  main `91bafec9e5085b4e50bad474bd2af53017e365f1`.
+- Founder permission repairs through [PR #21](https://github.com/CteNerd/roddy.tomlin.life/pull/21),
+  main `b254dbc3699fdbb5eef325abd04250c64bfa6173`.
+  The separately approved frontend artifact is pinned to reviewed ancestor
+  `35f2b33872f81c4617509c251ee1de0fd1a84c9f`; later policy/docs commits do not
+  change those deployed frontend bytes.
 
 Consulting development migration `reviewed-migration-524456e` is
 `UPDATE_COMPLETE`: health 200, anonymous protected routes 401, closed intake
@@ -105,18 +110,50 @@ API `jjvn8mwbs5`, production to independently verified `81qhxlwk68`.
 Production foundation is now `UPDATE_COMPLETE`: health 200, anonymous metrics
 401, original protected/PITR-enabled empty table and invitation-only MFA pool
 preserved, zero users and owner `disabled`. No profile hosting or owner access
-was activated.
+was activated by the backend repair.
 
-Production reporting/eventing remains preserved in `UPDATE_FAILED`: its two
-tagged mappings still fail authorization after PR #15. AWS action metadata
-shows `lambda:FunctionArn` is unsupported for `TagResource`, and existing
-development mappings carry three reserved CloudFormation tags in addition to
-portfolio/environment. [PR #18](https://github.com/CteNerd/roddy.tomlin.life/pull/18)
-replaces that unsatisfiable tag condition with exact stack/logical-ID ownership
-and requires real bounded development creation before production retry.
-[PR #17](https://github.com/CteNerd/roddy.tomlin.life/pull/17) prepares a separately
-protected Founder-prefix frontend release; dedicated publisher and existing-host
-routing integration must be reviewed before publishing `/founder`.
+Reporting's real development canary exposed additional Lambda tagging-context
+limitations after PRs #18/#19. The owner separately approved replacing mandatory
+CloudFormation system-tag values with RCT/environment request tags on
+account/region mapping ARNs in PR #21. Exact-function mapping creation and
+lifecycle permissions, permitted tag keys and all other resource scopes remain.
+The development subscription was successfully restored through the bounded
+reporting executor: both mappings are enabled, with all five expected tags;
+queues, worker and the other original subscription are preserved. Actual
+boundary sizes are 5,599 development and 5,565 production characters, below
+IAM's 6,144-character limit.
+
+Only after that proof, production's preserved reporting template was retried
+through its bounded executor. `rct-portfolio-production-eventing` is now
+`UPDATE_COMPLETE`; both mappings are enabled/tagged. The bus/discovery, two
+rules, six queues/policies, seven alarms, worker and logs remain intact.
+No synthetic production events or business data were introduced. The first
+development removal exposed post-delete authorization retries after function
+context disappeared; cleanup completed, but deletion/recovery acceptance remains
+an explicit operating follow-up rather than a reason to broaden the executor.
+
+The reviewed dedicated Founder publisher is `CREATE_COMPLETE`; its actual
+policy permits only `founder/*` object writes and invalidation on the existing
+distribution. Existing hosting integration changed only the exact-entry
+CloudFront function association. Full before/after distribution comparison
+preserved all other configuration, including alias/certificate/origin and HTTP
+404 behavior. Profile root SHA-256 stayed
+`fb108bc2c7d346ffe06b9f65a8ca34a58651cd90ed98ede5c0a0ff4aaad65fd6`.
+
+The real candidate build initially failed closed on an unused rehearsal
+environment marker; reviewed [PR #20](https://github.com/CteNerd/roddy.tomlin.life/pull/20)
+fixed individual environment-property reads and added a production-bundle
+regression without weakening release checks. Successful
+[candidate 42684093865](https://github.com/CteNerd/roddy.tomlin.life/actions/runs/42684093865)
+produced artifact `13704111836`, SHA-256
+`558c0399fff48d6b91e52b880ba20ffc00fac0be4432ca34c23e1e83fb957223`.
+The owner separately approved those exact inputs.
+[Protected promotion 42686317738](https://github.com/CteNerd/roddy.tomlin.life/actions/runs/42686317738)
+passed, publishing the same bytes without rebuilding or deleting objects.
+`https://roddy.tomlin.life/founder` and `/founder/` are live. Browser checks at
+1440px/360px found no overflow, errors, backend/auth requests or rehearsal
+content. Sign-in remains disabled; the API owner remains `disabled` with zero
+users. Root/experience still work; retired and missing-asset routes return 404.
 
 Separate a **public-site launch with collection closed** from **live workflow
 activation**. Neither requires completing every future C2/D2 feature:
@@ -126,8 +163,8 @@ activation**. Neither requires completing every future C2/D2 feature:
   publishing HTML alone is still not an API deployment. Configure each
   environment's publisher from its matching stack output and retain main-only
   policies and required production review.
-- Founder frontend integration and reporting repair remain separate release
-  gates. The separate existing profile
+- Founder frontend integration and reporting release gates have passed for
+  this closed-access launch. The separate existing profile
   `aws-production` environment has branch restrictions but no reviewer rule;
   do not treat it as the protected new-Founder promotion path.
 - Real workflows additionally require approved memberships/assignments,
@@ -138,11 +175,10 @@ activation**. Neither requires completing every future C2/D2 feature:
   monitoring/DLQ recovery and rollback/restore evidence. Public branding is
   approved; source CI is not evidence that live operating gates passed.
 
-The shortest safe route is reviewed merges, a controlled development migration
-and hosted smoke/UAT, then the approved marketing-only production
-launch with collection/access still closed. Activate real-user workflows
-separately after their data/access/operating gates pass. Do not repeat the
-already completed development bootstrap.
+All three approved public release surfaces are now deployed with
+collection/access still closed. Activate real-user workflows separately after
+their data/access/operating gates pass. Do not repeat the completed development
+bootstrap or confuse a closed-access public launch with accepted live workflows.
 
 ### Local acceptance rehearsals now available
 
