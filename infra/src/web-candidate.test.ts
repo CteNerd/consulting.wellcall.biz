@@ -1,0 +1,27 @@
+import assert from "node:assert/strict";
+import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { test } from "node:test";
+import { createCandidate, verifyCandidate } from "./web-candidate.ts";
+
+test("candidate binds exact bytes, file inventory, reviewed SHA and release run", (t) => {
+  const directory = join(import.meta.dirname, `../.candidate-test-${process.pid}`);
+  mkdirSync(join(directory, "assets"), { recursive: true });
+  t.after(() => rmSync(directory, { recursive: true }));
+  writeFileSync(join(directory, "index.html"), "<html>Intake closed</html>");
+  writeFileSync(join(directory, "assets/index-hash.js"), "closed");
+  const sha = "a".repeat(40);
+  const hash = createCandidate(directory, sha, "123");
+  verifyCandidate(directory, hash, sha, "123");
+  assert.throws(() => verifyCandidate(directory, "b".repeat(64), sha, "123"), /digest/);
+  assert.throws(() => verifyCandidate(directory, hash, "b".repeat(40), "123"), /provenance/);
+  assert.throws(() => verifyCandidate(directory, hash, sha, "124"), /provenance/);
+  writeFileSync(join(directory, "assets/index-hash.js"), "changed");
+  assert.throws(() => verifyCandidate(directory, hash, sha, "123"), /bytes/);
+  writeFileSync(join(directory, "assets/index-hash.js"), "closed");
+  writeFileSync(join(directory, "assets/extra.js"), "extra");
+  assert.throws(() => verifyCandidate(directory, hash, sha, "123"), /bytes/);
+  rmSync(join(directory, "assets/extra.js"));
+  symlinkSync("../index.html", join(directory, "assets/link.js"));
+  assert.throws(() => verifyCandidate(directory, hash, sha, "123"), /Unexpected candidate path/);
+});

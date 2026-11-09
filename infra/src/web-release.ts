@@ -1,8 +1,16 @@
 const repository = "CteNerd/consulting.wellcall.biz";
-const prefix = "rct-consulting-development";
-const rolePath = "/rct/consulting/development/";
-const customWebHost = "dev.thirddowntech.com";
-const customWebUrl = `https://${customWebHost}`;
+import { developmentCertificateArn } from "./config.ts";
+
+export function releaseTarget(env: NodeJS.ProcessEnv) {
+  const environment = env.RELEASE_ENVIRONMENT ?? "development";
+  if (environment !== "development" && environment !== "production") throw new Error("Invalid release target");
+  return {
+    environment,
+    prefix: `rct-consulting-${environment}`,
+    rolePath: `/rct/consulting/${environment}/`,
+    customWebHost: environment === "production" ? "thirddowntech.com" : "dev.thirddowntech.com",
+  };
+}
 
 export type PreviewRelease = {
   bucket: string;
@@ -15,23 +23,26 @@ export type PreviewRelease = {
 };
 
 export function validateReleaseEnvironment(env: NodeJS.ProcessEnv): { account: string; roleArn: string } {
+  const { environment, prefix, rolePath } = releaseTarget(env);
   if (env.GITHUB_REPOSITORY !== repository || env.GITHUB_REF !== "refs/heads/main"
     || env.GITHUB_EVENT_NAME !== "workflow_dispatch") {
-    throw new Error("Development publishing requires a manual run on this repository's main branch");
+    throw new Error("Publishing requires a manual run on this repository's main branch");
   }
   const account = env.AWS_ACCOUNT_ID;
-  if (!account || !/^\d{12}$/.test(account) || account === "123456789012") {
-    throw new Error("Set development variable AWS_ACCOUNT_ID to the verified real account");
+  if (!account || !/^\d{12}$/.test(account) || account === "123456789012"
+    || (environment === "production" && account !== "425061472162")) {
+    throw new Error("Set AWS_ACCOUNT_ID to the verified target account (production: 425061472162)");
   }
   const roleArn = `arn:aws:iam::${account}:role${rolePath}${prefix}-web-publish`;
   if (env.AWS_WEB_PUBLISH_ROLE_ARN !== roleArn) {
-    throw new Error("Set AWS_WEB_PUBLISH_ROLE_ARN to this development stack's WebPublishRoleArn output");
+    throw new Error("Set AWS_WEB_PUBLISH_ROLE_ARN to this target stack's WebPublishRoleArn output");
   }
   return { account, roleArn };
 }
 
 export function parsePreviewStack(value: unknown, env: NodeJS.ProcessEnv): PreviewRelease {
   const { account, roleArn } = validateReleaseEnvironment(env);
+  const { prefix, environment } = releaseTarget(env);
   if (!isRecord(value) || !Array.isArray(value.Stacks) || value.Stacks.length !== 1) {
     throw new Error("Expected exactly one deployed preview stack");
   }
@@ -52,7 +63,9 @@ export function parsePreviewStack(value: unknown, env: NodeJS.ProcessEnv): Previ
   if (outputs.WebPublishRoleArn !== roleArn) throw new Error("Publisher role does not match the deployed stack");
   const bucket = requiredOutput(outputs, "WebBucket", /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/);
   const distributionId = requiredOutput(outputs, "DistributionId", /^[A-Z0-9]{8,32}$/);
-  const webUrl = requiredOutput(outputs, "WebUrl", /^https:\/\/(?:[a-z0-9]+\.cloudfront\.net|dev\.thirddowntech\.com)$/);
+  const webUrl = requiredOutput(outputs, "WebUrl", environment === "production"
+    ? /^https:\/\/thirddowntech\.com$/
+    : /^https:\/\/(?:[a-z0-9]+\.cloudfront\.net|dev\.thirddowntech\.com)$/);
   const apiUrl = requiredOutput(outputs, "ApiUrl", /^https:\/\/[a-z0-9]+\.execute-api\.us-east-1\.amazonaws\.com$/);
   const authUrl = requiredOutput(outputs, "AuthUrl",
     new RegExp(`^https://${prefix}-${account}\\.auth\\.us-east-1\\.amazoncognito\\.com$`));
@@ -61,7 +74,11 @@ export function parsePreviewStack(value: unknown, env: NodeJS.ProcessEnv): Previ
   return { bucket, distributionId, webUrl, apiUrl, authUrl, clientId, userPoolId };
 }
 
-export function verifyPreviewDistribution(value: unknown, release: Pick<PreviewRelease, "bucket" | "distributionId" | "webUrl">): void {
+export function verifyPreviewDistribution(value: unknown, release: Pick<PreviewRelease, "bucket" | "distributionId" | "webUrl">,
+  env: NodeJS.ProcessEnv = {}): void {
+  const { customWebHost, environment } = releaseTarget(env);
+  const customWebUrl = `https://${customWebHost}`;
+  if (environment === "production" && release.webUrl !== customWebUrl) throw new Error("Production requires its approved custom origin");
   const distribution = isRecord(value) ? value.Distribution : undefined;
   const domainName = isRecord(distribution) ? distribution.DomainName : undefined;
   const config = isRecord(distribution) ? distribution.DistributionConfig : undefined;
@@ -79,12 +96,20 @@ export function verifyPreviewDistribution(value: unknown, release: Pick<PreviewR
       || !isRecord(certificate)
       || typeof certificate.ACMCertificateArn !== "string"
       || !/^arn:aws:acm:us-east-1:\d{12}:certificate\/[0-9a-f-]{36}$/.test(certificate.ACMCertificateArn)
+      || (env.AWS_ACCOUNT_ID && !certificate.ACMCertificateArn.startsWith(`arn:aws:acm:us-east-1:${env.AWS_ACCOUNT_ID}:certificate/`))
+      || (environment === "development" && env.AWS_ACCOUNT_ID === "425061472162"
+        && certificate.ACMCertificateArn !== developmentCertificateArn)
       || certificate.SSLSupportMethod !== "sni-only"
       || certificate.MinimumProtocolVersion !== "TLSv1.2_2021") {
       throw new Error("Custom preview hostname must match its CloudFront alias and ACM TLS configuration");
     }
   }
   const origins = isRecord(config) && isRecord(config.Origins) ? config.Origins.Items : undefined;
+  const errorResponses = isRecord(config) ? config.CustomErrorResponses : undefined;
+  if (errorResponses !== undefined && (!isRecord(errorResponses) || errorResponses.Quantity !== 0
+    || (errorResponses.Items !== undefined && (!Array.isArray(errorResponses.Items) || errorResponses.Items.length !== 0)))) {
+    throw new Error("Web releases forbid custom error fallbacks");
+  }
   if (!isRecord(config) || config.Enabled !== true || !Array.isArray(origins) || origins.length !== 1
     || !isRecord(origins[0])
     || origins[0].DomainName !== `${release.bucket}.s3.us-east-1.amazonaws.com`

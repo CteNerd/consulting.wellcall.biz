@@ -1,4 +1,5 @@
 import { useRef, useState, type FormEvent } from "react";
+import { publicCopy } from "./presentation.ts";
 
 type Attempt = { idempotencyKey: string; serializedBody: string };
 
@@ -14,7 +15,7 @@ export function LeadForm() {
   const attempt = useRef<Attempt | undefined>(undefined);
 
   if (!configured) {
-    return <p>Discovery booking and inquiries are not open in this preview.</p>;
+    return <p>{publicCopy("Discovery booking and inquiries are not open.", "Discovery booking and inquiries are not open in this preview.")}</p>;
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {

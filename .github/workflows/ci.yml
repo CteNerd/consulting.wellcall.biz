@@ -28,6 +28,10 @@ jobs:
       - run: npm audit --workspaces --include-workspace-root=false --audit-level=high
       - run: npm run cdk:synth:development
       - run: npm run cdk:synth:production
+      - name: Synthesize real-account dev preservation and approved public production offline
+        run: |
+          npm exec --workspace @rct/consulting-infra -- cdk synth -c environment=development -c account=425061472162 --output cdk.out/review-development --quiet
+          npm exec --workspace @rct/consulting-infra -- cdk synth -c environment=production -c account=425061472162 -c customDomains=true -c brandLaunchApproved=true --output cdk.out/review-production --quiet
   workspace-integration:
     runs-on: ubuntu-latest
     timeout-minutes: 10

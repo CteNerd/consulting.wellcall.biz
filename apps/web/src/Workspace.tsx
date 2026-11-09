@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { createAdminAuth, readAdminAuthConfiguration } from "./admin-auth.ts";
+import { publicCopy } from "./presentation.ts";
 import {
   parseWorkspaceAssignment,
   parseWorkspacePage,
@@ -36,7 +37,7 @@ type ProjectData = {
 
 export function Workspace() {
   useEffect(() => {
-    document.title = "Project workspace | Third Down Technologies | Development preview";
+    document.title = publicCopy("Project workspace | Third Down Technologies", "Project workspace | Third Down Technologies | Development preview");
   }, []);
 
   const [setup] = useState<WorkspaceSetup | undefined>(() => {
@@ -481,7 +482,7 @@ export function Workspace() {
       <header className="workspace-header">
         <a className="workspace-brand" href="/">Third Down Technologies <span>Private workspace</span></a>
         <nav aria-label="Workspace navigation">
-          <a href="/">Return to public preview</a>
+          <a href="/">{publicCopy("Return to public site", "Return to public preview")}</a>
           {accessToken && (
             <button type="button" className="workspace-button secondary" onClick={() => {
               clearSensitiveState("You have signed out of the project workspace.");

@@ -35,8 +35,8 @@ Missing or invalid target context fails. `us-east-1` is explicit.
   is authorized by this source change.
 - Invitation-only Cognito with required authenticator MFA and a public client.
   The web source includes a configuration-gated PKCE admin sign-in and inbox;
-  development source now defines a hosted Cognito login domain. Production
-  still has no login domain; neither environment provisions initial users.
+  both environments define a hosted Cognito login domain. Neither environment
+  provisions initial users or memberships. A public brand does not open access.
 - Node 24 API and outbox-publisher Lambdas with separate scoped roles and
   7/30-day dev/prod logs.
 - HTTP API: public `GET /health` and `POST /leads`, JWT-protected `GET /me`,
@@ -210,8 +210,14 @@ explicitly.
 
 ## DNS and release gates
 
-By default no Route 53 or ACM resources are created; generated service URLs are
-outputs. Opt-in `customDomains=true` imports the existing zone by ID, creates
+By default no Route 53 or ACM resources are created. In account `425061472162`,
+development **imports** the existing certificate
+`arn:aws:acm:us-east-1:425061472162:certificate/f188b0ef-39b4-4020-8c95-1b11a586942f`
+and preserves `dev.thirddowntech.com`, even with `customDomains=false`.
+`existingDevCertificateArn` can explicitly supply an existing same-account
+us-east-1 certificate for a development target. This mode never recreates or
+adopts the pre-existing DNS records or certificate; do not bootstrap dev again.
+Other default synths retain generated URLs. Opt-in `customDomains=true` imports the existing zone by ID, creates
 the web ACM certificate in `us-east-1`, and manages only explicit web aliases.
 Development API stays on its generated URL. Production additionally configures
 `api.thirddowntech.com` and requires `brandLaunchApproved=true`; that flag does
@@ -221,10 +227,8 @@ The generated CloudFront hostname uses CloudFront's default certificate/security
 policy; the configured custom certificate uses TLS 1.2. The source publisher
 validator accepts the generated CloudFront URL or exactly
 `https://dev.thirddowntech.com`; for the custom URL it verifies the distribution
-alias and ACM/TLS configuration. This change is source-only until merged, so
-the current main workflow still uses the generated URL. The live dev alias was
-added separately with AWS CLI; current stack outputs remain generated URLs.
-Before moving the alias into CDK management, review the complete change set.
+alias and ACM/TLS configuration. The development UPDATE must use the imported certificate path above, not create
+another certificate or DNS records. Review the complete change set.
 Publishing itself never changes DNS. See the [development handoff](../docs/development-handoff-2026-11-06.md).
 
 ## Manual development web releases
@@ -235,11 +239,11 @@ Lambda/API code, migrate data, modify DNS or publish production.
 
 Before its first run, an authorized operator must review and create
 `rct-consulting-development-foundation` in the real account, using approved
-bootstrap/CloudFormation execution permissions. The existing GitHub OIDC
+owner-authorized CloudFormation change-set permissions. The existing GitHub OIDC
 provider must include `sts.amazonaws.com`; the stack imports it, never recreates
 it. Keep `LeadIntakeEnabled=false`. Consulting also needs the portfolio bus/SSM
 discovery prerequisite, reviewed runtime permissions and budget/rollback gates.
-Do not use the synthetic CI synth assembly or widen the shared bootstrap role.
+Do not use the synthetic CI synth assembly or shared CDKToolkit executor.
 Infrastructure deployment automation remains outstanding.
 
 Development source defines an OIDC web publisher whose identity policy and
@@ -293,3 +297,249 @@ because current CDK declarations implement optional interface fields as explicit
 `undefined`; app/API/domain checks retain it. Dependency auditing reports
 moderate upstream minimatch advisories; high/critical findings block CI. This
 does not certify the preserved legacy CRA dependency graph.
+
+## Protected production web promotion
+
+Public brand publication is approved; intake, enrollment, initial users and
+Founderowner access remain closed pending real UAT. This PR supplies source
+only. It does not deploy infrastructure, configure GitHub environments or
+change AWS/DNS. The parent operator owns reviewed bootstrap/change sets.
+
+`Promote reviewed production web candidate` is manual and main-only. Supply the
+full reviewed `main` SHA as `reviewed_sha`; it must match the dispatch SHA.
+The candidate job installs only modern workspaces on Node 24/npm 11.6.2,
+runs checks once, builds once with explicit production presentation, and
+leaves all intake/consent/API/auth settings disabled or empty.
+The immutable artifact contains only `index.html`, hashed JS/CSS assets and a
+SHA-256 inventory manifest bound to repository, reviewed SHA and run ID.
+Its exact artifact ID and manifest digest pass to both protected jobs.
+Both verify every byte, inventory and provenance before OIDC; neither rebuilds.
+
+The `development` job uses only the dev publisher and verifies account, stack,
+private bucket/OAC, alias/certificate, API health, anonymous 401s, disabled intake,
+HTML/deep links, every emitted asset and missing-path errors. It requires the
+dev `X-Robots-Tag: noindex, nofollow` header **before** writing public-candidate
+bytes. Infrastructure must install that header and the exact-route function
+first. `production` depends on the successful stage and uses only its own
+protected-environment publisher with the same scoped policy/boundary.
+The production origin must be exactly `https://thirddowntech.com`.
+No broad SPA fallback, delete sync, identity/data writes or cross-env role
+assumption is permitted.
+
+### Operator prerequisites and commands (not executed here)
+
+Keep the existing GitHub OIDC provider and dev bootstrap; do not duplicate them.
+Both GitHub environments require a `main` deployment-branch restriction;
+`production` must require independent reviewer approval with no self-approval
+or administrator bypass. Configure `AWS_WEB_PUBLISH_ROLE_ARN` in **each**
+environment from that stack's `WebPublishRoleArn`. The new promotion workflow
+fixes account `425061472162`; the existing development publisher additionally
+uses its backwards-compatible `AWS_ACCOUNT_ID` environment variable.
+No static AWS credentials, secrets or client secrets are required.
+
+From the repository root, offline synthesis (no lookup or deployment):
+
+```sh
+npm exec --workspace @rct/consulting-infra -- cdk synth \
+  -c environment=development -c account=425061472162 \
+  -c existingDevCertificateArn=arn:aws:acm:us-east-1:425061472162:certificate/f188b0ef-39b4-4020-8c95-1b11a586942f \
+  --output cdk.out/review-development --quiet
+npm exec --workspace @rct/consulting-infra -- cdk synth \
+  -c environment=production -c account=425061472162 \
+  -c customDomains=true -c brandLaunchApproved=true \
+  --output cdk.out/review-production --quiet
+```
+
+### Isolated asset bootstrap and current-credential publication
+
+The application always uses `CliCredentialsStackSynthesizer`, never the shared
+default deploy/CloudFormation executor. Its assembly has **no** assume-role,
+execution-role, lookup-role or bootstrap-version SSM bindings. File assets,
+including the generated template, use only `release/` in:
+
+| Environment | Release asset bucket |
+| --- | --- |
+| development | `rct-consulting-development-assets-425061472162-us-east-1` (existing; preserve exactly) |
+| production | `rct-consulting-production-release-assets-425061472162-us-east-1` |
+
+`infra/release-assets.production.template.json` is the complete minimal
+production asset-only bootstrap template. It creates just the named private
+SSE-S3/AES256, bucket-owner-enforced, versioned retained bucket and a retained
+TLS-only deny policy. Outputs: `ReleaseAssetsBucket`, `FileAssetPrefix=release/`.
+No IAM role, executor, trust chain, SSM binding, access grant, development
+resource or web bucket is created. Do not run `cdk bootstrap`, recreate the
+existing development asset bucket, or use the verified broad shared executor.
+
+The parent must inspect and authorize the **initial** IAM-bearing foundation
+change set with approved owner credentials. This template supplies no new
+executor and no role-chain bypass. Current credentials need reviewed
+bucket-location/list and `release/*` GetObject/PutObject access for asset
+publication, plus separately authorized CloudFormation/application permissions
+for change-set preparation/execution. The web OIDC publisher is deliberately
+insufficient: it cannot publish Lambda assets or deploy infrastructure.
+Do not select a profile that silently assumes the shared deploy/execution roles.
+
+These are **operator-only AWS writes, not run by this agent**. From the
+repository root, first prepare the asset-only production bootstrap CREATE:
+
+```sh
+set -euo pipefail
+export AWS_REGION=us-east-1 AWS_DEFAULT_REGION=us-east-1 AWS_PAGER=""
+test "$(aws sts get-caller-identity --query Account --output text)" = 425061472162 \
+  || { printf '%s\n' 'STOP: wrong or unverified AWS account.' >&2; exit 1; }
+aws cloudformation create-change-set \
+  --region us-east-1 --stack-name rct-consulting-production-release-assets \
+  --change-set-name consulting-production-release-assets-create \
+  --change-set-type CREATE \
+  --template-body file://infra/release-assets.production.template.json
+aws cloudformation wait change-set-create-complete \
+  --region us-east-1 --stack-name rct-consulting-production-release-assets \
+  --change-set-name consulting-production-release-assets-create
+aws cloudformation describe-change-set \
+  --region us-east-1 --stack-name rct-consulting-production-release-assets \
+  --change-set-name consulting-production-release-assets-create
+```
+
+Only after explicit inspection/authorization, the parent may separately run:
+
+```sh
+set -euo pipefail
+aws cloudformation execute-change-set \
+  --region us-east-1 --stack-name rct-consulting-production-release-assets \
+  --change-set-name consulting-production-release-assets-create
+aws cloudformation wait stack-create-complete \
+  --region us-east-1 --stack-name rct-consulting-production-release-assets
+```
+
+There is no `--role-arn`: this new asset-only stack
+must not inherit a service role. No IAM capability is needed for its two S3
+resources. If a stack with that name already exists, stop and inspect it rather
+than treating CREATE failure as permission to replace/adopt anything.
+
+After both release asset buckets exist and the portfolio event-bus SSM
+prerequisites are satisfied, publish from the reviewed offline assemblies
+using **only the currently approved credentials**, with no role switch:
+
+```sh
+set -euo pipefail
+npm exec --workspace @rct/consulting-infra -- cdk publish-assets \
+  --app cdk.out/review-development rct-consulting-development-foundation
+npm exec --workspace @rct/consulting-infra -- cdk publish-assets \
+  --app cdk.out/review-production rct-consulting-production-foundation
+```
+
+This uploads the generated CloudFormation template as well as both Lambda
+ZIPs; it does not deploy. The generated foundation template exceeds the
+CloudFormation inline-body limit, so use its published HTTPS S3 URL.
+Derive URLs from the actual assemblies rather than copying a stale hash:
+
+```sh
+set -euo pipefail
+test "$(aws sts get-caller-identity --query Account --output text)" = 425061472162 \
+  || { printf '%s\n' 'STOP: wrong or unverified AWS account.' >&2; exit 1; }
+template_url() {
+  node --input-type=module - "$1" "$2" <<'NODE'
+import { readFileSync } from "node:fs";
+const [directory, stack] = process.argv.slice(2);
+const manifest = JSON.parse(readFileSync(`${directory}/manifest.json`, "utf8"));
+const uri = new URL(manifest.artifacts[stack].properties.stackTemplateAssetObjectUrl);
+console.log(`https://${uri.hostname}.s3.us-east-1.amazonaws.com${uri.pathname}`);
+NODE
+}
+DEV_TEMPLATE_URL=$(template_url infra/cdk.out/review-development rct-consulting-development-foundation)
+PROD_TEMPLATE_URL=$(template_url infra/cdk.out/review-production rct-consulting-production-foundation)
+
+# CloudFormation retains a stack's existing RoleARN when --role-arn is omitted.
+# Fail closed rather than silently reusing any existing service role on dev UPDATE.
+test "$(aws cloudformation describe-stacks --region us-east-1 \
+  --stack-name rct-consulting-development-foundation \
+  --query 'Stacks[0].RoleARN' --output text)" = None \
+  || { printf '%s\n' 'STOP: existing or unverified CloudFormation service role.' >&2; exit 1; }
+
+aws cloudformation create-change-set \
+  --region us-east-1 --stack-name rct-consulting-development-foundation \
+  --change-set-name consulting-development-public-source \
+  --change-set-type UPDATE --template-url "$DEV_TEMPLATE_URL" \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameters ParameterKey=LeadIntakeEnabled,ParameterValue=false \
+    ParameterKey=LeadConsentPolicyVersion,UsePreviousValue=true \
+    ParameterKey=LeadRetentionDays,UsePreviousValue=true
+aws cloudformation create-change-set \
+  --region us-east-1 --stack-name rct-consulting-production-foundation \
+  --change-set-name consulting-production-public-source \
+  --change-set-type CREATE --template-url "$PROD_TEMPLATE_URL" \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameters ParameterKey=LeadIntakeEnabled,ParameterValue=false
+```
+
+If development reports any `RoleARN`, **stop**: omission does not clear a sticky
+service role. Report it for separate owner review; do not pass a shared role,
+add an ad hoc executor or work around its trust. Production foundation CREATE
+likewise requires the stack to be absent; inspect any existing stack rather
+than silently changing CREATE to UPDATE. Do not add `--role-arn` to these
+instructions. The parent's separately approved initial IAM bootstrap, not
+shared AdministratorAccess, owns the necessary authorization.
+
+For each application change set, the parent must separately
+wait and inspect (including IAM changes):
+
+```sh
+for target in development production; do
+  aws cloudformation wait change-set-create-complete \
+    --region us-east-1 --stack-name "rct-consulting-$target-foundation" \
+    --change-set-name "consulting-$target-public-source"
+  aws cloudformation describe-change-set \
+    --region us-east-1 --stack-name "rct-consulting-$target-foundation" \
+    --change-set-name "consulting-$target-public-source"
+done
+```
+
+Only after separate owner authorization for each target, execute its reviewed
+change set and wait for its matching operation (not run by this agent):
+
+```sh
+set -euo pipefail
+aws cloudformation execute-change-set \
+  --region us-east-1 --stack-name rct-consulting-development-foundation \
+  --change-set-name consulting-development-public-source
+aws cloudformation wait stack-update-complete \
+  --region us-east-1 --stack-name rct-consulting-development-foundation
+aws cloudformation execute-change-set \
+  --region us-east-1 --stack-name rct-consulting-production-foundation \
+  --change-set-name consulting-production-public-source
+aws cloudformation wait stack-create-complete \
+  --region us-east-1 --stack-name rct-consulting-production-foundation
+```
+
+No execution is automated here.
+Dev UPDATE must preserve the existing distribution, alias/certificate, pool,
+bucket and table with no DNS adoption. Production creates apex/API DNS and
+certificate only under the explicit synth flags above. Never deploy synthetic
+account assemblies, seed users, repeat dev bootstrap or use stack deletion
+as a migration shortcut. Intake and access remain closed.
+
+### Provenance and rollback
+
+Candidate and per-environment promotion artifacts are retained for 90 days
+(subject to repository retention policy). Promotion records include reviewed
+SHA, run/attempt, manifest digest, distribution and invalidation IDs. Each
+record is persisted before S3 publication and updated immediately when an
+invalidation ID is available; an exit trap preserves failed-check state and
+exit status rather than losing the attempted release's provenance. Each
+environment artifact also captures the previous `index.html` when present,
+including on a later verification failure. Old hashed assets remain in S3.
+Download/archive approved artifacts before expiry if longer recovery is needed.
+
+For exact-byte rollback while the original candidate artifact remains retained,
+an authorized operator may re-run **only the production job** of the selected
+previous successful workflow run through its protected production approval.
+It uses that run's original artifact ID, digest and successful development
+stage, never rebuilds, and rechecks present-day backend/intake/destination gates.
+Verify the old SHA, artifact/digest and prior staging evidence before approval;
+this is an intentional rollback, not a bypass for a new unreviewed candidate.
+Do not re-run the candidate job over an existing immutable artifact name.
+Expired/missing artifacts fail closed: use a reviewed revert/new candidate
+instead, or separately review restoration of the captured prior entry point
+against retained assets. No stack deletion, broad identity, automatic rollback
+or tested live recovery is implied. Real UAT and recovery rehearsal remain
+required before opening collection or access.

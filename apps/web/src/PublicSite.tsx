@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { brand } from "./branding.ts";
+import { presentation, publicCopy } from "./presentation.ts";
 import { LeadForm } from "./LeadForm.tsx";
 import { engagementModels, faqs, services, stages, type Service } from "./site-content.ts";
 import "./public-site.css";
@@ -63,7 +64,7 @@ function NextStep() {
       <div>
         <p className="eyebrow">A useful next step</p>
         <h2 id="next-step-title">Start with the problem, not the platform.</h2>
-        <p>Intake is closed in this preview. In the meantime, get clear on the change you want to make.</p>
+        <p>{publicCopy("Intake is closed. In the meantime, get clear on the change you want to make.", "Intake is closed in this preview. In the meantime, get clear on the change you want to make.")}</p>
       </div>
       <a className="button" href="/contact">Prepare for discovery <Arrow /></a>
     </aside>
@@ -306,7 +307,7 @@ function ApproachPage() {
           <li>Responsibilities, access needs and third-party dependencies.</li>
           <li>Review cadence, estimates and a process for scope changes.</li>
           <li>Training, documentation, ownership and any ongoing support boundaries.</li>
-        </ul><p>Rates, timelines and commercial terms require a specific agreement. No payment terms, response-time guarantees or service levels are established by this preview.</p></div>
+        </ul><p>Rates, timelines and commercial terms require a specific agreement. No payment terms, response-time guarantees or service levels are established by this site.</p></div>
       </section>
       <NextStep />
     </>
@@ -317,7 +318,7 @@ function AboutPage() {
   return (
     <>
       <PageIntro label={`About ${brand.shortName}`} title="Technology should create a pathway, not another obstacle.">
-        <p>{brand.name} is a provisional consulting brand built around a practical idea: understand the problem, make a considered plan and help people use what gets built.</p>
+        <p>{brand.name} {publicCopy("is built", "is a provisional consulting brand built")} around a practical idea: understand the problem, make a considered plan and help people use what gets built.</p>
       </PageIntro>
       <section className="content-section split-section">
         <SectionHeading label="The philosophy" title={brand.philosophy} />
@@ -333,7 +334,7 @@ function AboutPage() {
       </section>
       <section className="content-section split-section">
         <SectionHeading label="Where the work fits" title="Different scale. The same attention to fit." />
-        <div><p>For small businesses, that means usable digital foundations and less fragmented day-to-day work. For established teams, it means focused engineering, architecture and leadership alongside the people already responsible for delivery.</p><p>This preview describes the service direction. It does not claim an approved legal identity, certifications, customer endorsements or published case-study results.</p><a className="text-link" href="/services">Explore the service areas <Arrow /></a></div>
+        <div><p>For small businesses, that means usable digital foundations and less fragmented day-to-day work. For established teams, it means focused engineering, architecture and leadership alongside the people already responsible for delivery.</p><p>{publicCopy("Explore the service areas to understand the approach, possible deliverables and decisions involved.", "This preview describes the service direction. It does not claim an approved legal identity, certifications, customer endorsements or published case-study results.")}</p><a className="text-link" href="/services">Explore the service areas <Arrow /></a></div>
       </section>
       <NextStep />
     </>
@@ -343,7 +344,7 @@ function AboutPage() {
 function FaqPage() {
   return (
     <>
-      <PageIntro label="Frequently asked questions" title="Useful answers before the first conversation."><p>What the service model includes, how decisions are made and what this preview does not offer.</p></PageIntro>
+      <PageIntro label="Frequently asked questions" title="Useful answers before the first conversation."><p>What the service model includes, how decisions are made and what this site does not offer.</p></PageIntro>
       <section className="content-section faq-list" aria-label="Questions and answers">
         {faqs.map((faq) => <details key={faq.question}><summary>{faq.question}</summary><p>{faq.answer}</p></details>)}
       </section>
@@ -355,7 +356,7 @@ function FaqPage() {
 function ContactPage() {
   return (
     <>
-      <PageIntro label="Discovery preparation / intake closed" title="A clearer brief is a better first move."><p>Discovery booking and public inquiries are closed in this development preview. You can still prepare a useful outline of the problem—without sharing private information here.</p></PageIntro>
+      <PageIntro label="Discovery preparation / intake closed" title="A clearer brief is a better first move."><p>{publicCopy("Discovery booking and public inquiries are closed.", "Discovery booking and public inquiries are closed in this development preview.")} You can still prepare a useful outline of the problem—without sharing private information here.</p></PageIntro>
       <section className="content-section split-section">
         <SectionHeading label="Before a future conversation" title="Five things worth thinking through." />
         <ol className="preparation-list">
@@ -367,9 +368,9 @@ function ContactPage() {
         </ol>
       </section>
       <section className="intake-panel" aria-labelledby="intake-title">
-        <p className="eyebrow">Development preview</p><h2 id="intake-title">Intake status</h2>
+        <p className="eyebrow">{publicCopy("Discovery preparation", "Development preview")}</p><h2 id="intake-title">Intake status</h2>
         <LeadForm />
-        <p>Do not share passwords, API keys, customer records or confidential business documents. This preview has no live calendar, checkout or public contact address.</p>
+        <p>Do not share passwords, API keys, customer records or confidential business documents. This site has no live calendar, checkout or public contact address.</p>
       </section>
       <section className="content-section">
         <SectionHeading label="Keep exploring" title="Get a feel for the right starting point." />
@@ -380,7 +381,7 @@ function ContactPage() {
 }
 
 function NotFound() {
-  return <PageIntro label="Page not found" title="Let's find the next move."><p>This page is not part of the public preview.</p><a className="button" href="/">Return home <Arrow /></a></PageIntro>;
+  return <PageIntro label="Page not found" title="Let's find the next move."><p>This page is not part of this site.</p><a className="button" href="/">Return home <Arrow /></a></PageIntro>;
 }
 
 function resolvePage(path: string): { title: string; content: ReactNode } {
@@ -404,13 +405,23 @@ export function PublicSite({ adminConfigured }: { adminConfigured: boolean }) {
   const page = resolvePage(path);
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
-    document.title = `${page.title} | ${brand.name} | Development preview`;
-  }, [page.title]);
+    const config = presentation(import.meta.env);
+    document.title = `${page.title} | ${brand.name}${config.publicBrand ? "" : " | Development preview"}`;
+    if (config.origin) {
+      let canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+      if (!canonical) {
+        canonical = document.createElement("link");
+        canonical.rel = "canonical";
+        document.head.append(canonical);
+      }
+      canonical.href = `${config.origin}${path === "/" ? "/" : path}`;
+    }
+  }, [page.title, path]);
 
   return (
     <div className="public-site">
       <a className="skip" href="#main">Skip to content</a>
-      <div className="preview-notice"><span>Development preview · Provisional brand</span><a href="/contact">Intake closed <span aria-hidden="true">↗</span></a></div>
+      <div className="preview-notice"><span>{publicCopy(brand.philosophy, "Development preview · Provisional brand")}</span><a href="/contact">Intake closed <span aria-hidden="true">↗</span></a></div>
       <header className="site-header">
         <a className="brand-lockup" href="/" aria-label={`${brand.name} home`}>
           <span className="brand-symbol" aria-hidden="true">III<span>↗</span></span>
@@ -430,7 +441,7 @@ export function PublicSite({ adminConfigured }: { adminConfigured: boolean }) {
         <div className="footer-top"><div><a className="footer-brand" href="/">{brand.shortName}</a><p>{brand.philosophy}</p><p>Practical technology.<br />A considered game plan.</p></div>
           <nav aria-label="Footer navigation"><a href="/services">Services</a><a href="/approach">Process & engagements</a><a href="/about">About</a><a href="/faq">FAQ</a><a href="/contact">Discovery preparation</a><a href="/?workspace">Team workspace</a>{adminConfigured && <a href="/?admin">Admin inbox</a>}</nav>
         </div>
-        <div className="footer-bottom"><p>{brand.name} is a provisional display brand. Public launch remains subject to approval.</p><p>Development preview. Intake closed. No booking or payment collection.</p></div>
+        <div className="footer-bottom"><p>{publicCopy(`${brand.name} · ${brand.philosophy}`, `${brand.name} is a provisional display brand. Public launch remains subject to approval.`)}</p><p>{publicCopy("Intake closed. No booking or payment collection.", "Development preview. Intake closed. No booking or payment collection.")}</p></div>
       </footer>
     </div>
   );

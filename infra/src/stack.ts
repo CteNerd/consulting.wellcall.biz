@@ -1,4 +1,4 @@
-import { CfnOutput, CfnParameter, Duration, RemovalPolicy, Stack, Tags } from "aws-cdk-lib";
+import { CfnOutput, CfnParameter, CliCredentialsStackSynthesizer, Duration, RemovalPolicy, Stack, Tags } from "aws-cdk-lib";
 import * as acm from "aws-cdk-lib/aws-certificatemanager";
 import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import { S3BucketOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
@@ -27,7 +27,13 @@ import { publicRouteFunctionCode } from "./web-routing.ts";
 
 export class ApplicationStack extends Stack {
   constructor(scope: Construct, config: Configuration, customDomains = false, brandLaunchApproved = false) {
-    super(scope, `${config.prefix}-foundation`, { env: { account: config.account, region: config.region } });
+    super(scope, `${config.prefix}-foundation`, {
+      env: { account: config.account, region: config.region },
+      synthesizer: new CliCredentialsStackSynthesizer({
+        fileAssetsBucketName: config.releaseAssetsBucket,
+        bucketPrefix: "release/",
+      }),
+    });
     if (customDomains && config.environment === "production" && !brandLaunchApproved) {
       throw new Error("Production custom domains require explicit brand/cutover approval");
     }
@@ -75,10 +81,12 @@ export class ApplicationStack extends Stack {
       enforceSSL: true,
       removalPolicy: RemovalPolicy.RETAIN,
     });
-    const zone = customDomains ? route53.HostedZone.fromHostedZoneAttributes(this, "ExistingZone", {
+    const zone = customDomains && !config.existingDevCertificateArn ? route53.HostedZone.fromHostedZoneAttributes(this, "ExistingZone", {
       hostedZoneId: config.hostedZoneId, zoneName: config.hostedZoneName,
     }) : undefined;
-    const certificate = zone ? new acm.Certificate(this, "WebCertificate", {
+    const certificate = config.existingDevCertificateArn
+      ? acm.Certificate.fromCertificateArn(this, "ExistingDevelopmentCertificate", config.existingDevCertificateArn)
+      : zone ? new acm.Certificate(this, "WebCertificate", {
       domainName: config.webDomain,
       subjectAlternativeNames: config.apiDomain ? [config.apiDomain] : [],
       validation: acm.CertificateValidation.fromDns(zone),
@@ -93,7 +101,17 @@ export class ApplicationStack extends Stack {
       defaultBehavior: {
         origin: S3BucketOrigin.withOriginAccessControl(bucket),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-        responseHeadersPolicy: cloudfront.ResponseHeadersPolicy.SECURITY_HEADERS,
+        responseHeadersPolicy: production ? cloudfront.ResponseHeadersPolicy.SECURITY_HEADERS
+          : new cloudfront.ResponseHeadersPolicy(this, "DevelopmentNoindex", {
+            securityHeadersBehavior: {
+              contentTypeOptions: { override: true },
+              frameOptions: { frameOption: cloudfront.HeadersFrameOption.DENY, override: true },
+              referrerPolicy: { referrerPolicy: cloudfront.HeadersReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN, override: true },
+              strictTransportSecurity: { accessControlMaxAge: Duration.days(365), includeSubdomains: true, override: true },
+              xssProtection: { protection: true, modeBlock: true, override: true },
+            },
+            customHeadersBehavior: { customHeaders: [{ header: "X-Robots-Tag", value: "noindex, nofollow", override: true }] },
+          }),
         compress: true,
         functionAssociations: [{
           eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
@@ -105,7 +123,7 @@ export class ApplicationStack extends Stack {
         minimumProtocolVersion: cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
       } : {}),
     });
-    const webOrigin = customDomains ? `https://${config.webDomain}` : `https://${distribution.distributionDomainName}`;
+    const webOrigin = certificate ? `https://${config.webDomain}` : `https://${distribution.distributionDomainName}`;
     if (zone) {
       const target = route53.RecordTarget.fromAlias(new targets.CloudFrontTarget(distribution));
       new route53.ARecord(this, "WebAlias", { zone, recordName: config.webDomain, target });
@@ -131,13 +149,13 @@ export class ApplicationStack extends Stack {
         logoutUrls: [`${webOrigin}/`],
       },
     });
-    if (!production) {
+    {
       const authDomain = pool.addDomain("DevelopmentLogin", {
         cognitoDomain: { domainPrefix: `${config.prefix}-${config.account}` },
       });
       new CfnOutput(this, "AuthUrl", { value: authDomain.baseUrl() });
       const publisherPolicy = new iam.ManagedPolicy(this, "WebPublishPolicy", {
-        description: "Development web artifacts only; no infrastructure, identity or application data mutations",
+        description: "Web artifacts only; no infrastructure, identity or application data mutations",
         statements: [
           new iam.PolicyStatement({
             actions: ["s3:GetBucketLocation", "s3:GetBucketPublicAccessBlock", "s3:GetBucketPolicyStatus", "s3:ListBucket"],
@@ -163,11 +181,11 @@ export class ApplicationStack extends Stack {
       );
       const publisherRole = new iam.Role(this, "WebPublisher", {
         roleName: `${config.prefix}-web-publish`,
-        path: "/rct/consulting/development/",
+        path: `/rct/consulting/${config.environment}/`,
         assumedBy: new iam.WebIdentityPrincipal(provider.openIdConnectProviderArn, {
           StringEquals: {
             "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-            "token.actions.githubusercontent.com:sub": "repo:CteNerd/consulting.wellcall.biz:environment:development",
+            "token.actions.githubusercontent.com:sub": `repo:CteNerd/consulting.wellcall.biz:environment:${config.environment}`,
           },
         }),
         managedPolicies: [publisherPolicy],

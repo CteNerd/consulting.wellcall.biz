@@ -199,8 +199,9 @@ test("production data is retained, backed up and protected from deletion", () =>
     }),
   });
   template.hasResource("AWS::Cognito::UserPool", { DeletionPolicy: "Retain" });
-  template.resourceCountIs("AWS::Cognito::UserPoolDomain", 0);
-  template.resourceCountIs("AWS::IAM::ManagedPolicy", 0);
+  template.resourceCountIs("AWS::Cognito::UserPoolDomain", 1);
+  template.resourceCountIs("AWS::IAM::ManagedPolicy", 1);
+  template.resourceCountIs("AWS::Cognito::UserPoolUser", 0);
 });
 
 test("development web publisher has exact OIDC trust and a matching artifact-only permissions boundary", () => {
@@ -252,4 +253,58 @@ test("invalid environment/account never silently falls back to production", () =
   assert.throws(() => configuration(undefined, "123456789012"), /environment/);
   assert.throws(() => configuration("development", undefined), /account/);
   assert.throws(() => configuration("production", "123"), /account/);
+});
+
+test("real-account development UPDATE preserves the existing alias and certificate without adopting DNS", () => {
+  const template = Template.fromStack(new ApplicationStack(new App(), configuration("development", "425061472162")));
+  template.resourceCountIs("AWS::CertificateManager::Certificate", 0);
+  template.resourceCountIs("AWS::Route53::RecordSet", 0);
+  template.resourceCountIs("AWS::Route53::HostedZone", 0);
+  template.hasResourceProperties("AWS::CloudFront::Distribution", {
+    DistributionConfig: Match.objectLike({
+      Aliases: ["dev.thirddowntech.com"],
+      ViewerCertificate: Match.objectLike({
+        AcmCertificateArn: "arn:aws:acm:us-east-1:425061472162:certificate/f188b0ef-39b4-4020-8c95-1b11a586942f",
+        SslSupportMethod: "sni-only", MinimumProtocolVersion: "TLSv1.2_2021",
+      }),
+    }),
+  });
+  template.hasResourceProperties("AWS::Cognito::UserPoolClient", {
+    CallbackURLs: ["https://dev.thirddowntech.com/"], LogoutURLs: ["https://dev.thirddowntech.com/"],
+  });
+  template.hasResourceProperties("AWS::ApiGatewayV2::Api", {
+    CorsConfiguration: Match.objectLike({ AllowOrigins: ["https://dev.thirddowntech.com", "http://127.0.0.1:5173"] }),
+  });
+  template.hasResourceProperties("AWS::CloudFront::ResponseHeadersPolicy", {
+    ResponseHeadersPolicyConfig: Match.objectLike({
+      CustomHeadersConfig: { Items: [{ Header: "X-Robots-Tag", Value: "noindex, nofollow", Override: true }] },
+    }),
+  });
+  assert.throws(() => configuration("production", "425061472162", "invalid"), /development certificate/);
+  assert.throws(() => configuration("development", "111122223333",
+    "arn:aws:acm:us-east-1:425061472162:certificate/f188b0ef-39b4-4020-8c95-1b11a586942f"), /target account/);
+});
+
+test("real production has exact protected-environment publisher, origins and no users or preview headers", () => {
+  const template = Template.fromStack(new ApplicationStack(new App(), configuration("production", "425061472162"), true, true));
+  template.hasResourceProperties("AWS::IAM::Role", {
+    RoleName: "rct-consulting-production-web-publish", Path: "/rct/consulting/production/",
+    AssumeRolePolicyDocument: Match.objectLike({ Statement: Match.arrayWith([Match.objectLike({
+      Condition: { StringEquals: {
+        "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+        "token.actions.githubusercontent.com:sub": "repo:CteNerd/consulting.wellcall.biz:environment:production",
+      } },
+    })]) }),
+  });
+  template.hasResourceProperties("AWS::Cognito::UserPoolClient", { CallbackURLs: ["https://thirddowntech.com/"] });
+  template.hasResourceProperties("AWS::ApiGatewayV2::Api", {
+    CorsConfiguration: Match.objectLike({ AllowOrigins: ["https://thirddowntech.com"] }),
+  });
+  template.resourceCountIs("AWS::Cognito::UserPoolUser", 0);
+  template.resourceCountIs("AWS::CloudFront::ResponseHeadersPolicy", 0);
+  const publisher = Object.values(template.findResources("AWS::IAM::Role")).find((role) =>
+    role.Properties.RoleName === "rct-consulting-production-web-publish");
+  assert.deepEqual(publisher!.Properties.PermissionsBoundary, publisher!.Properties.ManagedPolicyArns[0]);
+  assert.doesNotMatch(JSON.stringify(template.findResources("AWS::IAM::ManagedPolicy")),
+    /DeleteObject|PutBucket|UpdateDistribution|CreateStack|ExecuteChangeSet|iam:|dynamodb:|"Resource":"\*"/);
 });
