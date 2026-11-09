@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { App } from "./App.tsx";
 import { workspaceIntentKey } from "./Workspace.tsx";
@@ -333,7 +333,9 @@ test("a stale task transition is rejected without changing the displayed task", 
   enterWorkspace();
   fireEvent.click(await screen.findByRole("button", { name: /Website delivery/ }));
   await screen.findByRole("heading", { name: "Build the intake page" });
+  await waitFor(() => expect(screen.getByLabelText("Task status").hasAttribute("disabled")).toBe(false));
   fireEvent.change(screen.getByLabelText("Task status"), { target: { value: "IN_PROGRESS" } });
+  await waitFor(() => expect(screen.getByRole("button", { name: "Save task status" }).hasAttribute("disabled")).toBe(false));
   fireEvent.click(screen.getByRole("button", { name: "Save task status" }));
 
   expect(await screen.findByText("This record changed. Refresh before retrying.")).toBeDefined();
