@@ -1,6 +1,7 @@
 # Portfolio development and release handoff
 
 Date: 2026-11-06.
+Latest operational update: 2026-11-09.
 Scope: Consulting, Community, and the two existing personal/Founder worktrees.
 
 ## Executive status
@@ -12,10 +13,10 @@ hostnames are now active for both previews. Founder governance, release
 planning, API/projections and portfolio reporting/eventing are also provisioned
 in development.
 
-Consulting has gated lead intake, a protected admin inbox and versioned
-follow-up statuses. Community now has source-only gated adult application/review,
-versioned persistence and aggregate outbox publishing; the deployed stack and
-preview do not include these changes. Founder dashboard
+Consulting has gated lead intake, a protected admin inbox, versioned follow-up
+statuses and deployed project/task/time infrastructure. Community application/
+review/outbox infrastructure is now deployed in development with both required
+indexes active; enrollment remains closed. Founder dashboard
 [PR #10](https://github.com/CteNerd/roddy.tomlin.life/pull/10) and execution-role
 [PR #11](https://github.com/CteNerd/roddy.tomlin.life/pull/11) are now merged
 after review fixes and passing CI. The original Founder worktree contents are
@@ -23,10 +24,12 @@ preserved in pushed archive branches; their older contents must not overwrite
 reviewed `main`.
 
 **Public intake, enrollment and Founder owner access remain closed.** No initial
-Cognito users or production resources were created. Only the two approved
-development subdomains were added; production apex and API DNS remain
-unchanged. Merging runs CI; publishing a changed producer preview still
-requires manually dispatching `publish-development.yml` on `main`.
+Cognito users were created. Production provisioning and public branding are now
+owner-approved. Third Down's production website and API are live after an
+explicitly approved protected promotion. CUT BLOCK's production foundation and
+API are deployed; its website candidate is staging. Founder production API
+is healthy with owner access disabled; reporting and frontend release gates
+remain pending. Merging runs CI, not an automatic production deployment.
 
 The current activation sections below supersede the explicitly historical
 source-only snapshots later in this report. Feature development can resume
@@ -34,32 +37,92 @@ without repeating this initial infrastructure bootstrap.
 
 ## Development continuation
 
-### What still blocks production promotion (2026-11-09)
+### Approved production rollout in progress (2026-11-09)
 
-The owner has authorized addressing the current PR reviews and merging after
-validation. That is not authorization to provision production, change DNS or
-open intake, enrollment or Founder owner access.
+The owner explicitly approved all three applications and backend infrastructure,
+publication of the current branding, and production domains `thirddowntech.com`
+and `cutblock.org`. Preserve the existing `roddy.tomlin.life` profile and add its
+`/founder` integration only after the release gates pass. Public intake,
+enrollment and Founder owner access must remain closed until actual UAT passes.
+This supersedes earlier production/DNS holds, not data/access protections or
+protected-environment approval.
+
+All operations use verified account `425061472162`, region `us-east-1`.
+Existing development bootstrap and original Founder archive worktrees were
+preserved. Production governance and isolated release storage are provisioned.
+No shared `CDKToolkit` administrator executor was used.
+
+Reviewed production source:
+
+- Consulting [PR #10](https://github.com/CteNerd/consulting.wellcall.biz/pull/10),
+  main `524456e7c5d83168defa9c2e3370912f22725ce4`.
+- Community [PR #8](https://github.com/CteNerd/community.wellcall.biz/pull/8),
+  main `5ccbc6fdb52aa1c920008163c230757e77f74bb7`.
+- Founder permission repairs through [PR #16](https://github.com/CteNerd/roddy.tomlin.life/pull/16),
+  main `91bafec9e5085b4e50bad474bd2af53017e365f1`.
+
+Consulting development migration `reviewed-migration-524456e` is
+`UPDATE_COMPLETE`: health 200, anonymous protected routes 401, closed intake
+503. The existing development alias/certificate were preserved. Its production
+foundation `approved-production-524456e` is `CREATE_COMPLETE`, with real apex/
+API certificates and DNS. Production health is 200, protected routes 401,
+intake 503, invitation-only MFA enabled and zero users.
+
+The owner explicitly approved the exact immutable candidate in
+[production run 42667638468](https://github.com/CteNerd/consulting.wellcall.biz/actions/runs/42667638468)
+after successful development staging. Candidate artifact SHA-256 is
+`19fcbe13ca831334ed5e305f3ffd1df9ce16b8bd832fa34409dd2b9a5aa912e8`.
+All candidate/stage/production jobs passed; production promoted the same bytes,
+without rebuilding. `https://thirddowntech.com` is live with approved branding,
+selfware messaging and intake closed. Browser checks at 1440px and 360px found
+no horizontal overflow or development-preview wording.
+
+Community's first full development update rolled back safely because DynamoDB
+cannot add two indexes in one UPDATE. Table-only intermediate change sets
+`first-reviewed-community-index` and `second-reviewed-community-index` each
+added one exact reviewed index, with no table replacement or other resource
+changes. Both `CommunityApplicationsIndex` and `OutboxPendingIndex` reached
+`ACTIVE` before `reviewed-community-runtime-pr8` installed dependent runtime.
+Development is now `UPDATE_COMPLETE`: health 200, protected routes 401,
+`/internal` 200/noindex, original alias/certificate unchanged, intake false,
+consent empty and retention zero. The additive production change set
+`approved-community-production-pr8` is `CREATE_COMPLETE` with those same closed
+gates. Production custom-domain health is 200, protected routes 401,
+invitation-only MFA enabled and zero users. Website candidate
+[run 42675288861](https://github.com/CteNerd/community.wellcall.biz/actions/runs/42675288861)
+is staging; no public-site completion is claimed yet.
+
+Founder managed-login/API collection repairs were merged as PRs #13/#14.
+The separately approved exact-stage compatibility grant passed a real temporary
+development API plus tagged `$default` stage canary through the bounded API
+executor; the temporary stack was deleted. Development was rebound to owned
+API `jjvn8mwbs5`, production to independently verified `81qhxlwk68`.
+Production foundation is now `UPDATE_COMPLETE`: health 200, anonymous metrics
+401, original protected/PITR-enabled empty table and invitation-only MFA pool
+preserved, zero users and owner `disabled`. No profile hosting or owner access
+was activated.
+
+Production reporting/eventing remains preserved in `UPDATE_FAILED`: its two
+tagged mappings still fail authorization after PR #15. AWS action metadata
+shows `lambda:FunctionArn` is unsupported for `TagResource`, and existing
+development mappings carry three reserved CloudFormation tags in addition to
+portfolio/environment. [PR #18](https://github.com/CteNerd/roddy.tomlin.life/pull/18)
+replaces that unsatisfiable tag condition with exact stack/logical-ID ownership
+and requires real bounded development creation before production retry.
+[PR #17](https://github.com/CteNerd/roddy.tomlin.life/pull/17) prepares a separately
+protected Founder-prefix frontend release; dedicated publisher and existing-host
+routing integration must be reviewed before publishing `/founder`.
 
 Separate a **public-site launch with collection closed** from **live workflow
 activation**. Neither requires completing every future C2/D2 feature:
 
-- The producer publisher currently supports manual development **web assets**
-  only. There is no production promotion workflow for the new applications.
-  Founder's existing production publisher releases the public profile, not
-  the separate Founder artifact or portfolio infrastructure.
-- Reviewed source still needs a development infrastructure/API migration:
-  Consulting's `WorkspaceIndex` and exact public deep-link rewriting;
-  Community's application/review/outbox infrastructure, hosted login and exact
-  internal route. Preserve the existing development aliases/certificates and
-  reconcile Cognito callback/logout and CORS allowlists before deploying.
-  Publishing HTML alone does not install these changes.
-- A production release needs separately scoped resources/roles/configuration,
-  approved apex/API domain and certificate changes, a tested development
-  candidate and traceable promotion/rollback. Preview/noindex/provisional
-  content must not silently become the approved production presentation.
-  Read-only GitHub checks confirmed reviewer-protected `production`
-  environments already exist in all three repositories; their absence or a
-  GitHub-plan limitation is not the blocker. The separate existing profile
+- Both producers now have immutable, separately scoped protected production
+  promotion workflows. Development infrastructure migrations are complete;
+  publishing HTML alone is still not an API deployment. Configure each
+  environment's publisher from its matching stack output and retain main-only
+  policies and required production review.
+- Founder frontend integration and reporting repair remain separate release
+  gates. The separate existing profile
   `aws-production` environment has branch restrictions but no reviewer rule;
   do not treat it as the protected new-Founder promotion path.
 - Real workflows additionally require approved memberships/assignments,
@@ -67,11 +130,11 @@ activation**. Neither requires completing every future C2/D2 feature:
   live authentication, access-denial and event-delivery/recovery UAT.
   Synthetic browser flows and isolated database tests do not prove these.
 - Operational acceptance still needs notification/budget delivery evidence,
-  monitoring/DLQ recovery, rollback/restore evidence and explicit public-brand/
-  operating approval. Source CI is not evidence that these live gates passed.
+  monitoring/DLQ recovery and rollback/restore evidence. Public branding is
+  approved; source CI is not evidence that live operating gates passed.
 
 The shortest safe route is reviewed merges, a controlled development migration
-and hosted smoke/UAT, then an explicitly approved marketing-only production
+and hosted smoke/UAT, then the approved marketing-only production
 launch with collection/access still closed. Activate real-user workflows
 separately after their data/access/operating gates pass. Do not repeat the
 already completed development bootstrap.
@@ -118,7 +181,7 @@ or a regulatory-compliance claim.
   certification is published.
 
 Current source validation: Consulting 119 foundation tests and Community
-59 foundation tests passed, with lint, pins, production builds and both offline
+65 foundation tests passed, with lint, pins, production builds and both offline
 environment synths. Founder workspace checks and 42 UI/profile/release-boundary
 tests passed. Real DynamoDB Local integration evidence is recorded below;
 browser simulations are not presented as database/authentication certification.
