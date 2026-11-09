@@ -26,8 +26,8 @@ reviewed `main`.
 **Public intake, enrollment and Founder owner access remain closed.** No initial
 Cognito users were created. Production provisioning and public branding are now
 owner-approved. Third Down's production website and API are live after an
-explicitly approved protected promotion. CUT BLOCK's production foundation and
-API are deployed; its website candidate is staging. Founder production API
+explicitly approved protected promotion. CUT BLOCK's production website and API
+are also live after separate exact-candidate approval. Founder production API
 is healthy with owner access disabled; reporting and frontend release gates
 remain pending. Merging runs CI, not an automatic production deployment.
 
@@ -90,7 +90,12 @@ consent empty and retention zero. The additive production change set
 gates. Production custom-domain health is 200, protected routes 401,
 invitation-only MFA enabled and zero users. Website candidate
 [run 42675288861](https://github.com/CteNerd/community.wellcall.biz/actions/runs/42675288861)
-is staging; no public-site completion is claimed yet.
+completed all candidate/stage/production jobs after separate owner approval.
+Its immutable candidate artifact SHA-256 is
+`46786d879dcf5bfbf7e9b62e210c2852866e2f8abe9c87632ffb426e34bed66c`.
+`https://cutblock.org` is live with the approved CUT expansion and branding,
+enrollment closed and no application forms. Desktop/mobile browser checks found
+no horizontal overflow or development-preview warnings.
 
 Founder managed-login/API collection repairs were merged as PRs #13/#14.
 The separately approved exact-stage compatibility grant passed a real temporary
