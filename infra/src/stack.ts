@@ -315,6 +315,7 @@ export class ApplicationStack extends Stack {
       ["/projects/{projectId}/tasks/{taskId}", [apigateway.HttpMethod.PATCH]],
       ["/my/time-entries", [apigateway.HttpMethod.GET]],
       ["/projects/{projectId}/time-entries", [apigateway.HttpMethod.POST]],
+      ["/projects/{projectId}/time-entries/{timeEntryId}", [apigateway.HttpMethod.PATCH]],
       ["/projects/{projectId}/time-entries/{timeEntryId}/submit", [apigateway.HttpMethod.POST]],
       ["/projects/{projectId}/pending-time", [apigateway.HttpMethod.GET]],
       ["/projects/{projectId}/time-entries/{timeEntryId}/review", [apigateway.HttpMethod.POST]],

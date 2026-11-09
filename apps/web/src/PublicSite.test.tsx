@@ -100,6 +100,20 @@ test("engagement options describe scope and ownership without payment terms", ()
   expect(screen.getByText(/No payment terms, response-time guarantees or service levels/)).toBeDefined();
 });
 
+test("owner-directed software explains the reviewed path from a request to integration scope", () => {
+  window.history.replaceState(null, "", "/approach");
+  render(<App />);
+  expect(screen.getByRole("navigation", { name: "Main navigation" })
+    .querySelector('a[href="/approach#owner-directed"]')).not.toBeNull();
+  expect(screen.getByText("Owner-directed software / selfware")).toBeDefined();
+  expect(screen.getByRole("heading", { name: "Start with the change you want to make." })).toBeDefined();
+  expect(screen.getByText(/When a task is marked ready, include its due date/)).toBeDefined();
+  expect(screen.getByRole("heading", { name: "Buy, configure or build?" })).toBeDefined();
+  expect(screen.getByText(/For regulated needs, establish applicable requirements, authorized access, audit evidence, vendor agreements and independent review/)).toBeDefined();
+  expect(screen.getByText(/AI is not compliance/)).toBeDefined();
+  expect(document.querySelector("form")).toBeNull();
+});
+
 test("unknown and retired payment routes do not show commercial terms or a checkout", () => {
   window.history.replaceState(null, "", "/payment");
   render(<App />);

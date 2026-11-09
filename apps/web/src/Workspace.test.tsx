@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { App } from "./App.tsx";
 import { workspaceIntentKey } from "./Workspace.tsx";
-import type { WorkspaceTask } from "./workspace-client.ts";
+import type { WorkspaceTask, WorkspaceTimeEntry } from "./workspace-client.ts";
 
 const authMock = vi.hoisted(() => ({
   beginSignIn: vi.fn(),
@@ -119,6 +119,61 @@ test("a contributor can draft and submit own time but sees no manager controls",
   fireEvent.click(screen.getByRole("button", { name: "Submit for review" }));
   expect(await screen.findByText("Time entry submitted for review.")).toBeDefined();
   expect(screen.queryByRole("button", { name: "Submit for review" })).toBeNull();
+});
+
+test("a contributor can correct rejected time and resubmit the confirmed draft", async () => {
+  const rejected: WorkspaceTimeEntry = {
+    projectId, timeEntryId, taskId, workerId: "worker_1", workDate: "2026-11-07",
+    minutes: 45, description: "Initial summary", status: "REJECTED", version: 5,
+    reviewDecision: "REJECTED", reviewNote: "Please describe the implementation work.",
+    reviewedAt: "2026-11-08T14:00:00.000Z", reviewedBy: "manager_1",
+  };
+  let currentEntry: WorkspaceTimeEntry = rejected;
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input));
+    if (url.pathname === "/projects") return json(200, { projects: [project], nextToken: null });
+    if (url.pathname === "/my/time-entries") return json(200, { timeEntries: [currentEntry], nextToken: null });
+    if (url.pathname === "/me") return json(200, { userId: "worker_1" });
+    if (url.pathname === `/projects/${projectId}/tasks`) return json(200, { tasks: [ownTask], nextToken: null });
+    if (url.pathname === `/projects/${projectId}/assignments`) return json(403, { error: "Project manager access required" });
+    if (url.pathname === `/projects/${projectId}/time-entries/${timeEntryId}` && init?.method === "PATCH") {
+      const body = JSON.parse(String(init.body)) as {
+        taskId: string; workDate: string; minutes: number; description: string; expectedVersion: number;
+      };
+      currentEntry = {
+        projectId, timeEntryId, workerId: "worker_1", taskId: body.taskId, workDate: body.workDate,
+        minutes: body.minutes, description: body.description, status: "DRAFT",
+        version: body.expectedVersion + 1,
+      };
+      return json(200, currentEntry);
+    }
+    if (url.pathname.endsWith(`/time-entries/${timeEntryId}/submit`) && init?.method === "POST") {
+      currentEntry = { ...currentEntry, status: "SUBMITTED", version: currentEntry.version + 1 };
+      return json(200, currentEntry);
+    }
+    throw new Error(`Unexpected request: ${init?.method ?? "GET"} ${url.pathname}`);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  enterWorkspace();
+
+  expect(await screen.findByText("Please describe the implementation work.")).toBeDefined();
+  fireEvent.click(screen.getByRole("button", { name: "Correct rejected entry" }));
+  fireEvent.change(await screen.findByLabelText("Corrected work date"), { target: { value: "2026-11-08" } });
+  fireEvent.change(screen.getByLabelText("Corrected minutes (1–1440)"), { target: { value: "60" } });
+  fireEvent.change(screen.getByLabelText("Corrected work description"), { target: { value: "Implemented and tested the change" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save correction" }));
+
+  expect(await screen.findByText("Time draft corrected and saved.")).toBeDefined();
+  expect(screen.getByRole("button", { name: "Submit for review" })).toBeDefined();
+  expect(screen.queryByText("Please describe the implementation work.")).toBeNull();
+  const correctionCall = fetchMock.mock.calls.find(([input, init]) =>
+    new URL(String(input)).pathname === `/projects/${projectId}/time-entries/${timeEntryId}` && init?.method === "PATCH");
+  expect(JSON.parse(String(correctionCall?.[1]?.body))).toEqual({
+    taskId, workDate: "2026-11-08", minutes: 60,
+    description: "Implemented and tested the change", expectedVersion: 5,
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Submit for review" }));
+  expect(await screen.findByText("Time entry submitted for review.")).toBeDefined();
 });
 
 test("a manager sees API-authorized controls and stale review responses are not shown as success", async () => {
@@ -285,6 +340,43 @@ test("a denied manager queue request is not presented as an empty queue", async 
 
   expect(await screen.findByText(/Access denied\. Confirm the active membership, project assignment, or manager permission/)).toBeDefined();
   expect(screen.queryByText("No submitted time is awaiting review.")).toBeNull();
+});
+
+test("the synthetic UAT workspace requires explicit local opt-in and never uses fetch", async () => {
+  const fetchMock = vi.fn(() => Promise.reject(new Error("Rehearsal must not use fetch")));
+  vi.stubGlobal("fetch", fetchMock);
+  vi.stubEnv("VITE_ENABLE_UAT_REHEARSAL", "");
+  window.history.replaceState(null, "", "/?workspace&uatRehearsal=1");
+  render(<App />);
+  expect(screen.getByRole("button", { name: "Sign in" })).toBeDefined();
+  expect(screen.queryByText("NOT REAL AUTH · NOT DYNAMODB · NOT A LIVE SERVICE")).toBeNull();
+
+  cleanup();
+  vi.stubEnv("VITE_ENABLE_UAT_REHEARSAL", "1");
+  window.history.replaceState(null, "", "/?workspace");
+  render(<App />);
+  expect(screen.getByRole("button", { name: "Sign in" })).toBeDefined();
+  expect(screen.queryByText("NOT REAL AUTH · NOT DYNAMODB · NOT A LIVE SERVICE")).toBeNull();
+
+  cleanup();
+  window.history.replaceState(null, "", "/?workspace&uatRehearsal=1");
+  render(<App />);
+  expect(await screen.findByText("NOT REAL AUTH · NOT DYNAMODB · NOT A LIVE SERVICE")).toBeDefined();
+  expect(screen.queryByRole("button", { name: "Sign in" })).toBeNull();
+  expect(screen.getByLabelText("Switch synthetic role")).toBeDefined();
+  fireEvent.click(await screen.findByRole("button", { name: /Workflow improvement pilot/ }));
+  expect(await screen.findByText("Please describe the deliverable and outcome.")).toBeDefined();
+  expect(screen.getByRole("button", { name: "Correct rejected entry" })).toBeDefined();
+
+  fireEvent.click(screen.getByRole("button", { name: "Prepare stale-version conflict" }));
+  fireEvent.change(screen.getByLabelText("Task status"), { target: { value: "TODO" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save task status" }));
+  expect(await screen.findByText("This record changed. Refresh before retrying.")).toBeDefined();
+
+  fireEvent.change(screen.getByLabelText("Switch synthetic role"), { target: { value: "unassigned" } });
+  expect(await screen.findByText("No assigned projects are available to this account.")).toBeDefined();
+  expect(screen.queryByRole("button", { name: /Workflow improvement pilot/ })).toBeNull();
+  expect(fetchMock).not.toHaveBeenCalled();
 });
 
 test("a 401 clears the project list and returns to a sign-in state", async () => {

@@ -168,6 +168,47 @@ test("time submission atomically checks the caller, active assignment, task owne
   assert.equal(items.filter((item) => item.Put).length, 1);
 });
 
+test("draft correction atomically rechecks owner, active access, assigned task, and editable version", async () => {
+  const { client, commands } = fakeClient();
+  const store = new DynamoWorkspaceStore(client, "core");
+  await store.updateTimeDraft(manager, "manager-1", {
+    projectId, timeEntryId, taskId, workerId: "manager-1", workDate: "2026-11-07",
+    minutes: 45, description: "Original work", status: "REJECTED", version: 4,
+    createdAt: "2026-11-07T12:00:00.000Z", submittedAt: "2026-11-07T13:00:00.000Z",
+    reviewedAt: "2026-11-07T14:00:00.000Z", reviewedBy: "reviewer-1",
+    reviewDecision: "REJECTED", reviewNote: "Please clarify the work performed.",
+  }, {
+    taskId, workDate: "2026-11-08", minutes: 60, description: "Corrected work", expectedVersion: 4,
+  }, new Date("2026-11-08T15:00:00.000Z"));
+
+  const items = transaction(commands);
+  const conditions = items.flatMap((item) => item.ConditionCheck ? [item.ConditionCheck as Record<string, unknown>] : []);
+  assert.deepEqual(conditions.map((condition) => condition.Key).sort((a, b) =>
+    JSON.stringify(a).localeCompare(JSON.stringify(b))), [
+    { PK: `PROJECT#${projectId}`, SK: `ASSIGNMENT#manager-1` },
+    { PK: `PROJECT#${projectId}`, SK: "METADATA" },
+    { PK: `PROJECT#${projectId}`, SK: `TASK#${taskId}` },
+    { PK: "USER#manager-1", SK: "MEMBERSHIP" },
+  ]);
+  const update = items.find((item) => item.Update)?.Update as Record<string, unknown>;
+  assert.match(String(update.ConditionExpression), /#worker = :actor/);
+  assert.match(String(update.ConditionExpression), /#status = :rejected/);
+  assert.match(String(update.ConditionExpression), /#version = :expectedVersion/);
+  assert.match(String(update.UpdateExpression), /REMOVE submittedAt, reviewedAt, reviewedBy, reviewDecision, reviewNote, GSI2PK, GSI2SK/);
+  assert.deepEqual(update.ExpressionAttributeValues, {
+    ":entry": "TIME_ENTRY", ":actor": "manager-1", ":draft": "DRAFT", ":rejected": "REJECTED",
+    ":expectedVersion": 4, ":nextVersion": 5, ":taskId": taskId, ":workDate": "2026-11-08",
+    ":minutes": 60, ":description": "Corrected work",
+    ":timeSortKey": `TIME#${projectId}#2026-11-08#${timeEntryId}`,
+    ":updatedAt": "2026-11-08T15:00:00.000Z",
+  });
+  assert.equal(items.filter((item) => item.Put).length, 1);
+  const audit = items.find((item) => item.Put)?.Put as Record<string, unknown>;
+  assert.equal((audit.Item as Record<string, unknown>).action, "TIME_DRAFT_CORRECTED");
+  assert.equal((audit.Item as Record<string, unknown>).fromVersion, 4);
+  assert.equal((audit.Item as Record<string, unknown>).toVersion, 5);
+});
+
 test("manager review is versioned, excludes self-approval in storage, and removes only pending-review keys", async () => {
   const { client, commands } = fakeClient();
   const store = new DynamoWorkspaceStore(client, "core");

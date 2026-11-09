@@ -3,7 +3,7 @@ import type { APIGatewayProxyStructuredResultV2 } from "aws-lambda";
 import { canAccessProject } from "../../../packages/domain/src/authorization.ts";
 import {
   canTransitionTask, isPrincipalId, isProjectId, isProjectManager, parseCreateAssignment, parseCreateTask,
-  parseTaskUpdate, parseTimeReview, parseTimeSubmission,
+  parseTaskUpdate, parseTimeDraftUpdate, parseTimeReview, parseTimeSubmission,
 } from "../../../packages/domain/src/workspace.ts";
 import type { Request } from "./handler.ts";
 import {
@@ -33,7 +33,7 @@ export async function handleWorkspaceRequest(
   const method = event.requestContext.http.method;
   const path = event.rawPath;
   const projectSubroute = new RegExp(
-    `^/projects/${routeId}/(?:assignments|tasks|pending-time|time-entries(?:/${routeId}/(?:submit|review))?)$`,
+    `^/projects/${routeId}/(?:assignments|tasks|pending-time|time-entries(?:/${routeId}(?:/(?:submit|review))?)?)$`,
   );
   const taskRoute = new RegExp(`^/projects/${routeId}/tasks/${routeId}$`);
   const matched = method === "GET" && path === "/projects"
@@ -57,7 +57,7 @@ export async function handleWorkspaceRequest(
       return response(200, { projects: page.items, nextToken: page.nextToken });
     }
     if (method === "GET" && path === "/my/time-entries") {
-      return listOwnTimeEntries(event, store, actorId, nextToken);
+      return await listOwnTimeEntries(event, store, actorId, nextToken);
     }
 
     const projectMatch = new RegExp(`^/projects/${routeId}/(.*)$`).exec(path);
@@ -81,10 +81,10 @@ export async function handleWorkspaceRequest(
       return response(200, { assignments: page.items, nextToken: page.nextToken });
     }
     if (method === "POST" && suffix === "assignments") {
-      return createAssignment(event, store, context, actorId, dependencies);
+      return await createAssignment(event, store, context, actorId, dependencies);
     }
     if (method === "POST" && suffix === "tasks") {
-      return createTask(event, store, context, actorId, dependencies);
+      return await createTask(event, store, context, actorId, dependencies);
     }
     if (method === "GET" && suffix === "pending-time") {
       if (!isProjectManager(context.membership, context.assignment)) {
@@ -96,15 +96,19 @@ export async function handleWorkspaceRequest(
 
     const taskMatch = new RegExp(`^tasks/${routeId}$`).exec(suffix);
     if (taskMatch && method === "PATCH") {
-      return updateTask(event, store, context, actorId, taskMatch[1]!, dependencies);
+      return await updateTask(event, store, context, actorId, taskMatch[1]!, dependencies);
     }
     const submitMatch = new RegExp(`^time-entries/${routeId}/submit$`).exec(suffix);
     if (submitMatch && method === "POST") {
-      return submitTimeEntry(event, store, context, actorId, submitMatch[1]!, dependencies);
+      return await submitTimeEntry(event, store, context, actorId, submitMatch[1]!, dependencies);
+    }
+    const timeEntryMatch = new RegExp(`^time-entries/${routeId}$`).exec(suffix);
+    if (timeEntryMatch && method === "PATCH") {
+      return await updateTimeDraft(event, store, context, actorId, timeEntryMatch[1]!, dependencies);
     }
     const reviewMatch = new RegExp(`^time-entries/${routeId}/review$`).exec(suffix);
     if (reviewMatch && method === "POST") {
-      return reviewTimeEntry(event, store, context, actorId, reviewMatch[1]!, dependencies);
+      return await reviewTimeEntry(event, store, context, actorId, reviewMatch[1]!, dependencies);
     }
     if (method === "POST" && suffix === "time-entries") {
       return createTimeEntry(event, store, context, actorId, dependencies);
@@ -234,6 +238,33 @@ async function submitTimeEntry(
   );
   audit(event, actorId, "time_entry_submitted", context.project.projectId, entry.timeEntryId, submitted.version);
   return response(200, submitted);
+}
+
+async function updateTimeDraft(
+  event: Request, store: WorkspaceStore, context: ProjectContext,
+  actorId: string, timeEntryId: string, dependencies: WorkspaceHandlerDependencies,
+): Promise<APIGatewayProxyStructuredResultV2> {
+  const body = await readBody(event);
+  if (body instanceof BodyError) return response(body.status, { error: body.message });
+  const update = parseTimeDraftUpdate(body);
+  if (!update) return response(400, { error: "Invalid time draft correction" });
+  const entry = await store.getTimeEntry(context.project.projectId, timeEntryId);
+  if (!entry || entry.workerId !== actorId) return response(404, { error: "Time entry not found" });
+  if (!canAccessProject(context.membership, context.assignment, {
+    projectId: context.project.projectId, workerId: actorId,
+  }, "log_time")) return response(403, { error: "Only your own time may be corrected" });
+  if ((entry.status !== "DRAFT" && entry.status !== "REJECTED") || entry.version !== update.expectedVersion) {
+    return response(409, { error: "Time entry changed or is not editable. Refresh before retrying." });
+  }
+  const task = await store.getTask(context.project.projectId, update.taskId);
+  if (!task || task.assignedToUserId !== actorId) {
+    return response(403, { error: "Time may be corrected only to your assigned task" });
+  }
+  const corrected = await store.updateTimeDraft(
+    context, actorId, entry, update, (dependencies.now ?? (() => new Date()))(),
+  );
+  audit(event, actorId, "time_draft_corrected", context.project.projectId, entry.timeEntryId, corrected.version);
+  return response(200, corrected);
 }
 
 async function reviewTimeEntry(

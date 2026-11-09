@@ -111,6 +111,7 @@ The authenticated API source now includes:
   `GET|POST /projects/{projectId}/tasks` plus
   `PATCH /projects/{projectId}/tasks/{taskId}`.
 - `POST /projects/{projectId}/time-entries`,
+`PATCH /projects/{projectId}/time-entries/{timeEntryId}`,
   `POST /projects/{projectId}/time-entries/{timeEntryId}/submit`,
   `GET /my/time-entries`, `GET /projects/{projectId}/pending-time`, and
   `POST /projects/{projectId}/time-entries/{timeEntryId}/review`.
@@ -134,7 +135,14 @@ administrators), `{title, description, assignedToUserId}` for task creation,
 and `{status, expectedVersion}` for task status updates (`TODO`,
 `IN_PROGRESS`, `BLOCKED`, `DONE`; `DONE` is terminal). Time draft creation
 accepts `{taskId, workDate, minutes, description}`; the project ID comes only
-from the path and the worker only from the JWT. Submit accepts only
+from the path and the worker only from the JWT. `PATCH` time-entry correction
+accepts exactly `{taskId, workDate, minutes, description, expectedVersion}`.
+Only the owner may edit a `DRAFT` or correct a `REJECTED` entry; correction
+returns it to `DRAFT`, clears its current submission/review fields and pending
+index keys, and appends a versioned audit record without deleting prior audit
+history. The transaction independently rechecks active app membership, active
+project assignment, task assignment, owner, editable status and expected
+version. `SUBMITTED` and `APPROVED` records are not editable. Submit accepts only
 `{expectedVersion}`. Review accepts `{decision, expectedVersion, note?}`,
 where decision is `APPROVED|REJECTED`. Bodies reject unknown fields and have
 bounded sizes; list pages are capped at 25 projects, 50 tasks/time entries, or
@@ -152,19 +160,53 @@ such data or user is seeded here. `WorkspaceIndex` is a proposed change to the
 existing core table: review its backfill, capacity, and change set before any
 deployment. No time-entry retention/expiry policy is implemented or approved.
 
-The source-only web entry `/?workspace` integrates these routes with the
-existing configuration-gated Cognito helper. It lists assigned projects/tasks,
-supports own time creation/submission and manager assignment/task/review
-controls, surfaces denial/conflict responses and clears state on expired
-sessions. It does not seed memberships/projects or bypass backend authorization.
+The source-only web entry `/?workspace` integrates these routes with the existing configuration-gated
+Cognito helper. It lists assigned projects/tasks, supports own time
+creation/editing/submission and rejected-time correction, and exposes manager
+assignment/task/review controls. It surfaces denial/conflict responses and
+clears state on expired sessions. It does not seed memberships/projects or
+bypass backend authorization.
 
 This is a tested, source-only slice, not a deployed workflow or
 production-readiness claim. There is no assignment-revocation UI, membership
 administration API, live Cognito/DynamoDB rehearsal, or finance implementation.
-Intake remains disabled. Never authorize from request-body roles.
-Document storage, persisted draft editing and approved-time
-correction/reversal are not implemented by this slice; do not simulate them in
-the client or describe the full C2 plan as complete.
+Intake remains disabled. Never authorize from request-body roles. Approved-time
+correction/reversal and document storage are not implemented; do not simulate
+them in the client or describe the full C2 plan as complete.
+
+An explicitly opt-in synthetic rehearsal runs the actual workspace UI against
+an in-memory adapter, only when Vite development mode, the `dev:uat` startup
+flag, `uatRehearsal=1`, and a loopback host all agree. It is not real auth,
+DynamoDB or the live API, and sends no token, request or event to AWS. From the
+repository root:
+
+```sh
+npm run dev:uat --workspace @rct/consulting-web
+```
+
+Open `http://127.0.0.1:5186/?workspace&uatRehearsal=1`. The normal dev server
+and unconfigured preview keep the real sign-in gate. `npm run
+build:web` rejects production bundles that contain the UAT adapter's fixture
+identities and records. This is not a substitute for testing deployed
+authorization, persistence, Cognito or AWS integrations.
+
+The separate API integration test exercises the real
+`DynamoWorkspaceStore` against a disposable DynamoDB Local table. It validates
+`DYNAMODB_ENDPOINT` as plain HTTP loopback, uses explicit local-only credentials,
+creates an isolated table with the current three indexes, and deletes it in a
+`finally` block. Requests carry synthetic subjects, not Cognito-issued JWTs.
+The workflow writes only workspace records and audit rows; it does not send
+reporting events or connect to real AWS. Start DynamoDB Local separately, then
+run from the repository root:
+
+```sh
+DYNAMODB_ENDPOINT=http://127.0.0.1:8000 node --test apps/api/src/workspace.integration.ts
+```
+
+This validates local transaction persistence, not the deployed table migration,
+IAM policy, Cognito integration, or production readiness. It is not part of the
+ordinary API unit-test command and requires DynamoDB Local to be started
+explicitly.
 
 ## DNS and release gates
 

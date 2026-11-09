@@ -26,6 +26,10 @@ export type WorkspaceTimeEntry = {
   description: string;
   status: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED";
   version: number;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  reviewDecision?: "APPROVED" | "REJECTED";
+  reviewNote?: string;
 };
 
 export type WorkspaceAssignment = {
@@ -33,6 +37,29 @@ export type WorkspaceAssignment = {
   projectId: string;
   role: "contributor" | "manager";
   active: boolean;
+};
+
+export type WorkspaceRequestOptions = {
+  method?: string;
+  body?: object;
+  signal?: AbortSignal;
+};
+
+export type WorkspaceClient = {
+  request(path: string, options?: WorkspaceRequestOptions): Promise<unknown>;
+};
+
+export type RehearsalPersona = {
+  id: string;
+  label: string;
+  userId: string;
+  summary: string;
+};
+
+export type RehearsalWorkspaceClient = WorkspaceClient & {
+  readonly personas: RehearsalPersona[];
+  readonly currentPersona: RehearsalPersona;
+  selectPersona(personaId: string): void;
 };
 
 export class WorkspaceRequestError extends Error {
@@ -62,6 +89,15 @@ export async function requestWorkspace(
   } catch {
     throw new Error("The project workspace returned an invalid response.");
   }
+}
+
+export function createAuthenticatedWorkspaceClient(
+  configuration: AdminAuthConfiguration,
+  accessToken: string,
+): WorkspaceClient {
+  return {
+    request: (path, options = {}) => requestWorkspace(configuration, accessToken, path, options),
+  };
 }
 
 export function parseWorkspaceProject(value: unknown): WorkspaceProject {
@@ -98,7 +134,11 @@ export function parseWorkspaceTimeEntry(value: unknown): WorkspaceTimeEntry {
     || typeof value.minutes !== "number" || !Number.isSafeInteger(value.minutes)
     || typeof value.description !== "string"
     || !["DRAFT", "SUBMITTED", "APPROVED", "REJECTED"].includes(String(value.status))
-    || !isVersion(value.version)) throw invalidResponse();
+    || !isVersion(value.version)
+    || (value.reviewedAt !== undefined && typeof value.reviewedAt !== "string")
+    || (value.reviewedBy !== undefined && typeof value.reviewedBy !== "string")
+    || (value.reviewDecision !== undefined && value.reviewDecision !== "APPROVED" && value.reviewDecision !== "REJECTED")
+    || (value.reviewNote !== undefined && typeof value.reviewNote !== "string")) throw invalidResponse();
   return {
     projectId: value.projectId,
     timeEntryId: value.timeEntryId,
@@ -109,6 +149,11 @@ export function parseWorkspaceTimeEntry(value: unknown): WorkspaceTimeEntry {
     description: value.description,
     status: value.status as WorkspaceTimeEntry["status"],
     version: value.version,
+    ...(typeof value.reviewedAt === "string" ? { reviewedAt: value.reviewedAt } : {}),
+    ...(typeof value.reviewedBy === "string" ? { reviewedBy: value.reviewedBy } : {}),
+    ...(value.reviewDecision === "APPROVED" || value.reviewDecision === "REJECTED"
+      ? { reviewDecision: value.reviewDecision } : {}),
+    ...(typeof value.reviewNote === "string" ? { reviewNote: value.reviewNote } : {}),
   };
 }
 

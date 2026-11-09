@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   canTransitionTask, parseCreateAssignment, parseCreateTask, parseTaskUpdate,
-  parseTimeReview, parseTimeSubmission,
+  parseTimeDraftUpdate, parseTimeReview, parseTimeSubmission,
 } from "./workspace.ts";
 
 const projectId = "b9de9897-5f48-4a63-a872-1d1b53bd64a5";
@@ -42,4 +42,19 @@ test("time review and task transitions require supported, versioned state change
   assert.equal(canTransitionTask("IN_PROGRESS", "DONE"), true);
   assert.equal(canTransitionTask("DONE", "IN_PROGRESS"), false);
   assert.equal(canTransitionTask("TODO", "TODO"), false);
+});
+
+test("time draft correction accepts only bounded submission fields and an expected version", () => {
+  assert.deepEqual(parseTimeDraftUpdate({
+    taskId, workDate: "2026-11-08", minutes: 45, description: "  Corrected work  ", expectedVersion: 3,
+  }), {
+    taskId, workDate: "2026-11-08", minutes: 45, description: "Corrected work", expectedVersion: 3,
+  });
+  for (const invalid of [
+    { taskId, workDate: "2026-11-08", minutes: 1441, description: "Work", expectedVersion: 0 },
+    { taskId, workDate: "2026-02-30", minutes: 45, description: "Work", expectedVersion: 0 },
+    { taskId, workDate: "2026-11-08", minutes: 45, description: "x".repeat(501), expectedVersion: 0 },
+    { taskId, workDate: "2026-11-08", minutes: 45, description: "Work", expectedVersion: -1 },
+    { taskId, workDate: "2026-11-08", minutes: 45, description: "Work", expectedVersion: 0, workerId: "forged" },
+  ]) assert.equal(parseTimeDraftUpdate(invalid), undefined);
 });

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { createAdminAuth, readAdminAuthConfiguration } from "./admin-auth.ts";
 import {
   parseWorkspaceAssignment,
@@ -6,9 +6,11 @@ import {
   parseWorkspaceProject,
   parseWorkspaceTask,
   parseWorkspaceTimeEntry,
-  requestWorkspace,
+  createAuthenticatedWorkspaceClient,
   workspaceErrorMessage,
   WorkspaceRequestError,
+  type RehearsalWorkspaceClient,
+  type WorkspaceClient,
   type WorkspaceAssignment,
   type WorkspaceProject,
   type WorkspaceTask,
@@ -42,6 +44,17 @@ export function Workspace() {
     return configuration ? { configuration, auth: createAdminAuth(configuration) } : undefined;
   });
   const [accessToken, setAccessToken] = useState<string>();
+  const uatRequested = import.meta.env.DEV
+    && import.meta.env.VITE_ENABLE_UAT_REHEARSAL === "1"
+    && isLoopbackHostname(window.location.hostname)
+    && new URLSearchParams(window.location.search).get("uatRehearsal") === "1";
+  const [uatClient, setUatClient] = useState<
+    (RehearsalWorkspaceClient & { prepareConflict(): void }) | undefined
+  >();
+  const [rehearsalRevision, setRehearsalRevision] = useState(0);
+  const workspaceClient = useMemo<WorkspaceClient | undefined>(() => uatClient
+    ?? (setup && accessToken ? createAuthenticatedWorkspaceClient(setup.configuration, accessToken) : undefined),
+  [accessToken, setup, uatClient]);
   const [userId, setUserId] = useState<string>();
   const [projects, setProjects] = useState<WorkspaceProject[]>([]);
   const [projectsNextToken, setProjectsNextToken] = useState<string | null>(null);
@@ -49,6 +62,7 @@ export function Workspace() {
   const [projectData, setProjectData] = useState<ProjectData>();
   const [timeEntries, setTimeEntries] = useState<WorkspaceTimeEntry[]>([]);
   const [timeNextToken, setTimeNextToken] = useState<string | null>(null);
+  const [editingTimeEntryId, setEditingTimeEntryId] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
@@ -64,6 +78,7 @@ export function Workspace() {
     setProjectData(undefined);
     setTimeEntries([]);
     setTimeNextToken(null);
+    setEditingTimeEntryId(undefined);
     setBusy(false);
     setSaving(false);
     setStatus(message);
@@ -78,7 +93,22 @@ export function Workspace() {
   }
 
   useEffect(() => {
-    if (!setup || !hasAuthorizationResponse(window.location.search)) return;
+    if (!uatRequested) return;
+    let active = true;
+    void import("./uat-rehearsal.ts").then(({ createUatRehearsal }) => {
+      if (!active) return;
+      const rehearsal = createUatRehearsal();
+      setUatClient(rehearsal);
+      setUserId(rehearsal.currentPersona.userId);
+      setStatus("Synthetic local rehearsal ready. No real authentication or live service requests are used.");
+    }).catch(() => {
+      if (active) setStatus("The local rehearsal could not be loaded.");
+    });
+    return () => { active = false; };
+  }, [uatRequested]);
+
+  useEffect(() => {
+    if (uatRequested || !setup || !hasAuthorizationResponse(window.location.search)) return;
     let active = true;
     setBusy(true);
     void setup.auth.completeSignIn(window.location.href)
@@ -91,10 +121,10 @@ export function Workspace() {
         if (active) setBusy(false);
       });
     return () => { active = false; };
-  }, [setup]);
+  }, [setup, uatRequested]);
 
   useEffect(() => {
-    if (!setup || !accessToken) return;
+    if (!workspaceClient) return;
     const controller = new AbortController();
     setBusy(true);
     setProjects([]);
@@ -103,9 +133,9 @@ export function Workspace() {
     setTimeEntries([]);
     setStatus("");
     void Promise.all([
-      requestWorkspace(setup.configuration, accessToken, "/projects", { signal: controller.signal }),
-      requestWorkspace(setup.configuration, accessToken, "/my/time-entries", { signal: controller.signal }),
-      requestWorkspace(setup.configuration, accessToken, "/me", { signal: controller.signal }),
+      workspaceClient.request("/projects", { signal: controller.signal }),
+      workspaceClient.request("/my/time-entries", { signal: controller.signal }),
+      workspaceClient.request("/me", { signal: controller.signal }),
     ])
       .then(([projectResponse, timeResponse, identityResponse]) => {
         if (controller.signal.aborted) return;
@@ -123,20 +153,20 @@ export function Workspace() {
       .catch((error: unknown) => { if (!controller.signal.aborted) reportError(error); })
       .finally(() => { if (!controller.signal.aborted) setBusy(false); });
     return () => controller.abort();
-  }, [accessToken, setup]);
+  }, [rehearsalRevision, workspaceClient]);
 
   useEffect(() => {
-    if (!setup || !accessToken || !projectId) return;
+    if (!workspaceClient || !projectId) return;
     const controller = new AbortController();
     setProjectData(undefined);
     setStatus("");
     setBusy(true);
-    void loadProjectData(setup, accessToken, projectId, controller.signal)
+    void loadProjectData(workspaceClient, projectId, controller.signal)
       .then((data) => { if (!controller.signal.aborted) setProjectData(data); })
       .catch((error: unknown) => { if (!controller.signal.aborted) reportError(error); })
       .finally(() => { if (!controller.signal.aborted) setBusy(false); });
     return () => controller.abort();
-  }, [accessToken, projectId, setup]);
+  }, [projectId, rehearsalRevision, workspaceClient]);
 
   async function signIn() {
     if (!setup) return;
@@ -152,15 +182,29 @@ export function Workspace() {
     }
   }
 
+  function selectRehearsalPersona(personaId: string) {
+    if (!uatClient) return;
+    try {
+      uatClient.selectPersona(personaId);
+      setUserId(uatClient.currentPersona.userId);
+      setProjectId(undefined);
+      setProjectData(undefined);
+      setEditingTimeEntryId(undefined);
+      setStatus(`Using synthetic ${uatClient.currentPersona.label.toLowerCase()} scope.`);
+      setRehearsalRevision((revision) => revision + 1);
+    } catch (error) {
+      reportError(error);
+    }
+  }
+
   async function refreshWorkspace() {
-    if (!setup || !accessToken || busy || saving) return;
-    const token = accessToken;
+    if (!workspaceClient || busy || saving) return;
     setBusy(true);
     setStatus("");
     try {
       const [projectResponse, timeResponse] = await Promise.all([
-        requestWorkspace(setup.configuration, token, "/projects"),
-        requestWorkspace(setup.configuration, token, "/my/time-entries"),
+        workspaceClient.request("/projects"),
+        workspaceClient.request("/my/time-entries"),
       ]);
       const projectPage = parseWorkspacePage(projectResponse, "projects", parseWorkspaceProject);
       const timePage = parseWorkspacePage(timeResponse, "timeEntries", parseWorkspaceTimeEntry);
@@ -169,7 +213,7 @@ export function Workspace() {
       setTimeEntries(timePage.items);
       setTimeNextToken(timePage.nextToken);
       if (projectId) {
-        setProjectData(await loadProjectData(setup, token, projectId));
+        setProjectData(await loadProjectData(workspaceClient, projectId));
       }
       setStatus("Workspace refreshed.");
     } catch (error) {
@@ -180,13 +224,11 @@ export function Workspace() {
   }
 
   async function loadMoreProjects() {
-    if (!setup || !accessToken || !projectsNextToken || busy || saving) return;
+    if (!workspaceClient || !projectsNextToken || busy || saving) return;
     setBusy(true);
     setStatus("");
     try {
-      const response = await requestWorkspace(
-        setup.configuration, accessToken, `/projects?nextToken=${encodeURIComponent(projectsNextToken)}`,
-      );
+      const response = await workspaceClient.request(`/projects?nextToken=${encodeURIComponent(projectsNextToken)}`);
       const page = parseWorkspacePage(response, "projects", parseWorkspaceProject);
       setProjects((current) => [...current, ...page.items]);
       setProjectsNextToken(page.nextToken);
@@ -198,7 +240,7 @@ export function Workspace() {
   }
 
   async function loadMoreProjectItems(collection: "tasks" | "assignments" | "pending-time") {
-    if (!setup || !accessToken || !projectId || !projectData || busy || saving) return;
+    if (!workspaceClient || !projectId || !projectData || busy || saving) return;
     const token = collection === "tasks" ? projectData.taskNextToken
       : collection === "assignments" ? projectData.assignmentNextToken
         : projectData.pendingNextToken;
@@ -207,9 +249,7 @@ export function Workspace() {
     setStatus("");
     try {
       const suffix = collection === "pending-time" ? "pending-time" : collection;
-      const response = await requestWorkspace(
-        setup.configuration,
-        accessToken,
+      const response = await workspaceClient.request(
         `/projects/${encodeURIComponent(projectId)}/${suffix}?nextToken=${encodeURIComponent(token)}`,
       );
       if (collection === "tasks") {
@@ -243,7 +283,7 @@ export function Workspace() {
 
   async function createAssignment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!setup || !accessToken || !projectId || !projectData?.assignments || saving) return;
+    if (!workspaceClient || !projectId || !projectData?.assignments || saving) return;
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
     const user = String(form.get("userId") ?? "").trim();
@@ -261,7 +301,7 @@ export function Workspace() {
 
   async function createTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!setup || !accessToken || !projectId || !projectData?.assignments || saving) return;
+    if (!workspaceClient || !projectId || !projectData?.assignments || saving) return;
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
     const title = String(form.get("title") ?? "");
@@ -280,7 +320,7 @@ export function Workspace() {
   }
 
   async function updateTask(task: WorkspaceTask, nextStatus: WorkspaceTask["status"]): Promise<boolean> {
-    if (!setup || !accessToken || saving || nextStatus === task.status || task.status === "DONE") return false;
+    if (!workspaceClient || saving || nextStatus === task.status || task.status === "DONE") return false;
     return mutateProject(`/projects/${task.projectId}/tasks/${task.taskId}`, {
       method: "PATCH",
       body: { status: nextStatus, expectedVersion: task.version },
@@ -293,7 +333,7 @@ export function Workspace() {
 
   async function createTimeDraft(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!setup || !accessToken || !projectId || !projectData || !userId || saving) return;
+    if (!workspaceClient || !projectId || !projectData || !userId || saving) return;
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
     const taskId = String(form.get("taskId") ?? "");
@@ -318,7 +358,7 @@ export function Workspace() {
   }
 
   async function submitTimeEntry(entry: WorkspaceTimeEntry) {
-    if (!setup || !accessToken || saving || entry.status !== "DRAFT") return;
+    if (!workspaceClient || saving || entry.status !== "DRAFT") return;
     await mutateProject(
       `/projects/${entry.projectId}/time-entries/${entry.timeEntryId}/submit`,
       {
@@ -332,12 +372,41 @@ export function Workspace() {
     );
   }
 
+  async function updateTimeDraft(entry: WorkspaceTimeEntry, event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!workspaceClient || saving || !userId
+      || (entry.status !== "DRAFT" && entry.status !== "REJECTED")) return;
+    const form = new FormData(event.currentTarget);
+    const taskId = String(form.get("taskId") ?? "");
+    const workDate = String(form.get("workDate") ?? "");
+    const minutes = Number(form.get("minutes"));
+    const description = String(form.get("description") ?? "");
+    const task = projectData?.tasks.find((item) => item.taskId === taskId && item.assignedToUserId === userId);
+    if (!task || projectId !== entry.projectId) {
+      setStatus("Choose a task assigned to your account in this project.");
+      return;
+    }
+    const saved = await mutateProject(`/projects/${entry.projectId}/time-entries/${entry.timeEntryId}`, {
+      method: "PATCH",
+      body: { taskId, workDate, minutes, description, expectedVersion: entry.version },
+      successMessage: "Time draft corrected and saved.",
+      validate: parseWorkspaceTimeEntry,
+      verify: (item) => item.projectId === entry.projectId && item.timeEntryId === entry.timeEntryId
+        && item.taskId === taskId && item.workerId === userId && item.status === "DRAFT"
+        && item.version === entry.version + 1 && item.workDate === workDate
+        && item.minutes === minutes && item.description === description.trim()
+        && item.reviewedAt === undefined && item.reviewedBy === undefined
+        && item.reviewDecision === undefined && item.reviewNote === undefined,
+    });
+    if (saved) setEditingTimeEntryId(undefined);
+  }
+
   async function reviewTimeEntry(
     entry: WorkspaceTimeEntry,
     decision: "APPROVED" | "REJECTED",
     note: string,
   ) {
-    if (!setup || !accessToken || saving || entry.status !== "SUBMITTED") return;
+    if (!workspaceClient || saving || entry.status !== "SUBMITTED") return;
     await mutateProject(
       `/projects/${entry.projectId}/time-entries/${entry.timeEntryId}/review`,
       {
@@ -361,12 +430,12 @@ export function Workspace() {
       verify: (saved: T) => boolean;
     },
   ): Promise<boolean> {
-    if (!setup || !accessToken) return false;
+    if (!workspaceClient) return false;
     const selectedProjectId = projectId;
     setSaving(true);
     setStatus("");
     try {
-      const saved = options.validate(await requestWorkspace(setup.configuration, accessToken, path, {
+      const saved = options.validate(await workspaceClient.request(path, {
         method: options.method,
         body: options.body,
       }));
@@ -374,9 +443,9 @@ export function Workspace() {
         throw new Error("The project workspace returned an invalid response.");
       }
       if (selectedProjectId) {
-        setProjectData(await loadProjectData(setup, accessToken, selectedProjectId));
+        setProjectData(await loadProjectData(workspaceClient, selectedProjectId));
       }
-      setTimeEntries(await loadOwnTimeEntries(setup, accessToken));
+      setTimeEntries(await loadOwnTimeEntries(workspaceClient));
       setStatus(options.successMessage);
       return true;
     } catch (error) {
@@ -388,13 +457,11 @@ export function Workspace() {
   }
 
   async function loadMoreTimeEntries() {
-    if (!setup || !accessToken || !timeNextToken || busy || saving) return;
+    if (!workspaceClient || !timeNextToken || busy || saving) return;
     setBusy(true);
     setStatus("");
     try {
-      const response = await requestWorkspace(
-        setup.configuration, accessToken, `/my/time-entries?nextToken=${encodeURIComponent(timeNextToken)}`,
-      );
+      const response = await workspaceClient.request(`/my/time-entries?nextToken=${encodeURIComponent(timeNextToken)}`);
       const page = parseWorkspacePage(response, "timeEntries", parseWorkspaceTimeEntry);
       setTimeEntries((current) => [...current, ...page.items]);
       setTimeNextToken(page.nextToken);
@@ -404,6 +471,8 @@ export function Workspace() {
       setBusy(false);
     }
   }
+
+  const hasWorkspaceSession = accessToken !== undefined || uatClient !== undefined;
 
   return (
     <div className="workspace">
@@ -425,19 +494,46 @@ export function Workspace() {
       <main id="workspace-main" className="workspace-main">
         <p className="workspace-eyebrow">Authenticated project workspace</p>
         <h1>Assigned projects</h1>
+        {uatRequested && !uatClient && <p role="status">Preparing the opt-in local rehearsal...</p>}
+        {uatRequested && uatClient && (
+          <aside className="workspace-uat" aria-labelledby="uat-rehearsal-heading">
+            <p className="workspace-eyebrow">Synthetic local rehearsal</p>
+            <h2 id="uat-rehearsal-heading">NOT REAL AUTH · NOT DYNAMODB · NOT A LIVE SERVICE</h2>
+            <p>All personas, records and actions stay in browser memory. No tokens, API requests or events are sent to AWS.</p>
+            <label htmlFor="uat-persona">Switch synthetic role</label>
+            <select
+              id="uat-persona"
+              value={uatClient.currentPersona.id}
+              onChange={(event) => selectRehearsalPersona(event.target.value)}
+            >
+              {uatClient.personas.map((persona) => (
+                <option value={persona.id} key={persona.id}>{persona.label}</option>
+              ))}
+            </select>
+            <p>{uatClient.currentPersona.summary}</p>
+            <button className="workspace-button secondary" type="button" onClick={() => {
+              uatClient.prepareConflict();
+              setStatus("A stale-version conflict is armed for the next save. No record will be changed by that attempt.");
+            }} disabled={busy || saving}>
+              Prepare stale-version conflict
+            </button>
+          </aside>
+        )}
         <p className="workspace-limitations">
-          Current API limits: time drafts can be created and submitted, but not edited or deleted. Assignment revocation,
-          time corrections or review reversals, and document upload are not available here.
+          You can edit your own drafts and correct rejected time. Submitted and approved entries are read-only.
+          Assignment revocation, review reversal, and document upload are not available here.
         </p>
-        {!setup ? (
+        {!hasWorkspaceSession ? (
+          uatRequested ? <p role="status">Starting local rehearsal controls...</p> : !setup ? (
           <p role="status">Workspace sign-in is not configured in this build. No project data is available.</p>
-        ) : !accessToken ? (
+          ) : (
           <>
             <p>Sign in with an active Consulting account. Project access is determined by the service for each request.</p>
             <button className="workspace-button" type="button" onClick={signIn} disabled={busy}>
               {busy ? "Signing in..." : "Sign in"}
             </button>
           </>
+          )
         ) : (
           <>
             <div className="workspace-actions">
@@ -497,15 +593,44 @@ export function Workspace() {
                           <span className={`workspace-status status-${entry.status.toLowerCase()}`}>{entry.status}</span>
                         </div>
                         <p>{entry.description}</p>
-                        {entry.status === "DRAFT" && (
-                          <button
-                            className="workspace-button"
-                            type="button"
-                            onClick={() => void submitTimeEntry(entry)}
-                            disabled={busy || saving}
-                          >
-                            Submit for review
-                          </button>
+                        {entry.status === "REJECTED" && entry.reviewNote && (
+                          <p><strong>Manager feedback:</strong> {entry.reviewNote}</p>
+                        )}
+                        {(entry.status === "DRAFT" || entry.status === "REJECTED") && (
+                          <div className="workspace-inline-form">
+                            {entry.status === "DRAFT" && (
+                              <button
+                                className="workspace-button"
+                                type="button"
+                                onClick={() => void submitTimeEntry(entry)}
+                                disabled={busy || saving}
+                              >
+                                Submit for review
+                              </button>
+                            )}
+                            <button
+                              className="workspace-button secondary"
+                              type="button"
+                              onClick={() => {
+                                setEditingTimeEntryId(entry.timeEntryId);
+                                if (projectId !== entry.projectId) setProjectId(entry.projectId);
+                              }}
+                              disabled={busy || saving}
+                            >
+                              {entry.status === "REJECTED" ? "Correct rejected entry" : "Edit draft"}
+                            </button>
+                          </div>
+                        )}
+                        {editingTimeEntryId === entry.timeEntryId && (
+                          projectId !== entry.projectId || !projectData
+                            ? <p>Loading assigned tasks for this project...</p>
+                            : <TimeEntryEditForm
+                              entry={entry}
+                              tasks={projectData.tasks.filter((task) => task.assignedToUserId === userId)}
+                              disabled={busy || saving}
+                              onSubmit={(event) => void updateTimeDraft(entry, event)}
+                              onCancel={() => setEditingTimeEntryId(undefined)}
+                            />
                         )}
                       </article>
                     </li>
@@ -520,7 +645,7 @@ export function Workspace() {
             </section>
           </>
         )}
-        {busy && accessToken && <p>Loading workspace...</p>}
+        {busy && hasWorkspaceSession && <p>Loading workspace...</p>}
         <p className="workspace-feedback" role="status" aria-live="polite">{status}</p>
       </main>
       <footer className="workspace-footer">Project access and review permissions are checked by the service on every request.</footer>
@@ -743,22 +868,53 @@ function TaskCard({
   );
 }
 
+function TimeEntryEditForm({
+  entry,
+  tasks,
+  disabled,
+  onSubmit,
+  onCancel,
+}: {
+  entry: WorkspaceTimeEntry;
+  tasks: WorkspaceTask[];
+  disabled: boolean;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onCancel: () => void;
+}) {
+  const suffix = entry.timeEntryId;
+  return (
+    <form className="workspace-form" onSubmit={onSubmit}>
+      <h4>{entry.status === "REJECTED" ? "Correct rejected time" : "Edit time draft"}</h4>
+      <label htmlFor={`time-edit-task-${suffix}`}>Assigned task to update</label>
+      <select id={`time-edit-task-${suffix}`} name="taskId" required defaultValue={tasks.some((task) => task.taskId === entry.taskId) ? entry.taskId : ""}>
+        <option value="" disabled>Select your task</option>
+        {tasks.map((task) => <option key={task.taskId} value={task.taskId}>{task.title}</option>)}
+      </select>
+      <label htmlFor={`time-edit-date-${suffix}`}>Corrected work date</label>
+      <input id={`time-edit-date-${suffix}`} name="workDate" type="date" required defaultValue={entry.workDate} />
+      <label htmlFor={`time-edit-minutes-${suffix}`}>Corrected minutes (1–1440)</label>
+      <input id={`time-edit-minutes-${suffix}`} name="minutes" type="number" min={1} max={1440} required defaultValue={entry.minutes} />
+      <label htmlFor={`time-edit-description-${suffix}`}>Corrected work description</label>
+      <textarea id={`time-edit-description-${suffix}`} name="description" rows={3} maxLength={500} required defaultValue={entry.description} />
+      <div className="workspace-inline-form">
+        <button className="workspace-button" type="submit" disabled={disabled || tasks.length === 0}>Save correction</button>
+        <button className="workspace-button secondary" type="button" onClick={onCancel} disabled={disabled}>Cancel</button>
+      </div>
+    </form>
+  );
+}
+
 async function loadProjectData(
-  setup: WorkspaceSetup,
-  token: string,
+  client: WorkspaceClient,
   projectId: string,
   signal?: AbortSignal,
 ): Promise<ProjectData> {
   const projectPath = `/projects/${encodeURIComponent(projectId)}`;
-  const taskResponse = await requestWorkspace(
-    setup.configuration, token, `${projectPath}/tasks`, signal ? { signal } : {},
-  );
+  const taskResponse = await client.request(`${projectPath}/tasks`, signal ? { signal } : {});
   const taskPage = parseWorkspacePage(taskResponse, "tasks", parseWorkspaceTask);
   let assignmentPage: { items: WorkspaceAssignment[]; nextToken: string | null };
   try {
-    const assignmentResponse = await requestWorkspace(
-      setup.configuration, token, `${projectPath}/assignments`, signal ? { signal } : {},
-    );
+    const assignmentResponse = await client.request(`${projectPath}/assignments`, signal ? { signal } : {});
     assignmentPage = parseWorkspacePage(assignmentResponse, "assignments", parseWorkspaceAssignment);
   } catch (error) {
     if (!(error instanceof WorkspaceRequestError) || error.statusCode !== 403) throw error;
@@ -770,9 +926,7 @@ async function loadProjectData(
       pendingNextToken: null,
     };
   }
-  const pendingResponse = await requestWorkspace(
-    setup.configuration, token, `${projectPath}/pending-time`, signal ? { signal } : {},
-  );
+  const pendingResponse = await client.request(`${projectPath}/pending-time`, signal ? { signal } : {});
   const pendingPage = parseWorkspacePage(pendingResponse, "timeEntries", parseWorkspaceTimeEntry);
   return {
     tasks: taskPage.items,
@@ -784,8 +938,8 @@ async function loadProjectData(
   };
 }
 
-async function loadOwnTimeEntries(setup: WorkspaceSetup, token: string): Promise<WorkspaceTimeEntry[]> {
-  const response = await requestWorkspace(setup.configuration, token, "/my/time-entries");
+async function loadOwnTimeEntries(client: WorkspaceClient): Promise<WorkspaceTimeEntry[]> {
+  const response = await client.request("/my/time-entries");
   return parseWorkspacePage(response, "timeEntries", parseWorkspaceTimeEntry).items;
 }
 
@@ -815,6 +969,10 @@ function localDateString(): string {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function isLoopbackHostname(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "[::1]";
 }
 
 const taskStatuses: WorkspaceTask["status"][] = ["TODO", "IN_PROGRESS", "BLOCKED", "DONE"];

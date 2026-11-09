@@ -33,6 +33,53 @@ without repeating this initial infrastructure bootstrap.
 
 ## Development continuation
 
+### Local acceptance rehearsals now available
+
+Use synthetic data only. Do not enter real client/participant details, clinical
+information, credentials or confidential business documents into these
+rehearsals. They are opt-in loopback development modes, not live-user access
+or a regulatory-compliance claim.
+
+| Workflow | Running local URL | Restart command, from the corresponding repository |
+| --- | --- | --- |
+| Consulting project/task/time | `http://127.0.0.1:5186/?workspace&uatRehearsal=1` | `npm run dev:uat --workspace @rct/consulting-web` |
+| Community adult applicant/reviewer | `http://127.0.0.1:5185/internal` | `npm run dev:uat --workspace @rct/community-web` |
+| Founder read-only reporting | `http://localhost:5184/founder/` | `npm run dev:uat --workspace @rct/founder-web` in the isolated UAT worktree |
+
+- Consulting now supports actual API-backed editing of own drafts and correction
+  of rejected time. Correction returns the entry to draft, clears current
+  review fields and retains immutable audit history; submitted/approved time
+  is read-only. The local rehearsal can switch contributor, manager,
+  administrator and unassigned personas and exercise tasks, stale versions,
+  rejection/correction/resubmission and approval. Scripted browser checks
+  exercised correction, submission, manager approval and removal of data for
+  unassigned users, with mobile overflow checks.
+- Community now has configuration-gated applicant receipt/status/submission/
+  withdrawal and administrator review screens over the existing API contracts.
+  The rehearsal exercises synthetic mentor/participant and reviewer roles;
+  browser checks followed submission, adult verification, screening and
+  approval through versions 0–3. Public/default pages remain closed and have
+  no enrollment form. Development hosted-login and exact `/internal` route
+  rewriting are source-only and require reviewed migration.
+- Founder rehearses absent versus observed-zero projections, signed totals,
+  period selection and expired/unavailable/malformed responses. Errors remove
+  stale cards; no source-record or participant details are exposed.
+- Production build checks exclude synthetic fixtures/persona bypass in all
+  three applications. Normal previews retain their configuration/access gates.
+  These local client-side rehearsals do not validate real Cognito, live IAM,
+  EventBridge or operating procedures.
+- Consulting's owner-directed software / “selfware” section is on the existing
+  Approach page. It distinguishes owner-written bounded requests from deeper
+  engineering/integration work, includes build-versus-buy tradeoffs and states
+  that AI is not compliance. No customer/person attribution or regulated-system
+  certification is published.
+
+Current source validation: Consulting 115 foundation tests and Community
+59 foundation tests passed, with lint, pins, production builds and both offline
+environment synths. Founder workspace checks and 42 UI/profile/release-boundary
+tests passed. Real DynamoDB Local integration evidence is recorded below;
+browser simulations are not presented as database/authentication certification.
+
 ### Progress protection and UAT scope (2026-11-09)
 
 The verified baseline is now committed and pushed:
@@ -50,8 +97,36 @@ repositories, so protecting progress does not require opening a PR. Check jobs
 retain only `contents: read`; deployment workflows and production approval
 rules are unchanged. Source pushes are not a merge or a deployment.
 
-The next increment prepares opt-in loopback-only synthetic workflow
-rehearsals and closes source UI/workflow gaps. Synthetic personas, consent,
+Verified feature-push evidence:
+
+- Consulting checkpoint CI
+  [42619134986](https://github.com/CteNerd/consulting.wellcall.biz/actions/runs/42619134986)
+  passed.
+- Community
+  [42620018414](https://github.com/CteNerd/community.wellcall.biz/actions/runs/42620018414)
+  passed foundation checks and real DynamoDB Local application integration:
+  duplicate submission recovery, cross-applicant denial, one winner in racing
+  withdrawals, retention enforcement before TTL deletion, and prerequisite-
+  checked mentor approval with exactly one sanitized outbox record.
+  Five tests passed with zero skips. This proves local database transactions,
+  not live JWT validation, IAM, EventBridge delivery or safeguarding.
+- Founder UAT checkpoint `73e7852` and
+  [42620285730](https://github.com/CteNerd/roddy.tomlin.life/actions/runs/42620285730)
+  passed profile/workspace checks and isolated reporting integration. The
+  synthetic dashboard fixtures are absent from production Founder and public
+  profile artifacts.
+
+The Founder rehearsal is running at `http://localhost:5184/founder/`.
+To restart it, run `npm run dev:uat --workspace @rct/founder-web` from the
+isolated Founder UAT worktree. Select January 2026 for absent projections,
+September 2026 for an observed zero, or November 2026 for populated/signed
+totals. The response selector exercises expired sessions, unavailable service
+and malformed aggregate data; each error removes stale report cards.
+Desktop/mobile browser checks exercised these actual UI paths. It is explicitly
+synthetic and read-only, without live data or owner access.
+
+This increment provides opt-in loopback-only synthetic workflow rehearsals
+and closes source UI/workflow gaps. Synthetic personas, consent,
 screening, project data and aggregate totals must be clearly labeled and
 excluded from production web artifacts. They must never send requests or
 events to live AWS. These rehearsals are not proof of Cognito, persistence,
@@ -82,12 +157,12 @@ Both public sites have substantial source-only updates:
   provisional-brand language. Production-build browser checks at 320, 390 and
   1440 pixels found no horizontal overflow in the tested journeys; navigation
   and keyboard FAQ interaction were exercised.
-- Community's modern foundation checks (45 tests), existing foundation linter,
+- Community's modern foundation checks (59 tests), existing foundation linter,
   contract pins, web build and both offline synths passed. Third Down's web
-  checks (47 tests), contract pins and web build passed. Consulting API
-  (35 tests), domain (7 tests), infrastructure (12 tests), lint and both
+  checks (50 tests), contract pins and web build passed. Consulting API
+  (39 tests), domain (8 tests), infrastructure (12 tests), lint and both
   offline synths also passed.
-  Final combined foundation totals are 107 Consulting tests and 45 Community
+  Current combined foundation totals are 115 Consulting tests and 59 Community
   tests, with no failures.
 
 These are local source/build results, not a CloudFront release. Existing
@@ -114,10 +189,11 @@ event contract. Reviewed membership/project/initial manager data,
 `WorkspaceIndex` migration/backfill, time retention and live authenticated
 rehearsal remain gates. The authenticated `/?workspace` UI now integrates
 assigned projects/tasks, manager assignment/task controls, own time
-draft/submission and manager review. API denials and stale versions are shown
-explicitly; expired sessions clear workspace data. Persisted draft editing,
-assignment revocation, document upload and time correction/reversal are not
-implemented. These source features are not deployed. Local browser checks
+draft/submission and manager review, including own draft editing and rejected
+time correction. API denials and stale versions are shown explicitly; expired
+sessions clear workspace data. Assignment revocation, document upload and
+approved-time correction/reversal are not implemented. These source features
+are not deployed. Local browser checks
 confirmed the workspace fails closed without auth configuration and has no
 horizontal overflow at 320/390/1440 pixels; authenticated paths are covered by
 tests, not a live Cognito/DynamoDB rehearsal.

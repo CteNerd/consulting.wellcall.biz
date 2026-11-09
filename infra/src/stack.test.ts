@@ -78,6 +78,7 @@ test("development foundation keeps intake closed, protects API access and provis
     "PATCH /projects/{projectId}/tasks/{taskId}",
     "GET /my/time-entries",
     "POST /projects/{projectId}/time-entries",
+    "PATCH /projects/{projectId}/time-entries/{timeEntryId}",
     "POST /projects/{projectId}/time-entries/{timeEntryId}/submit",
     "GET /projects/{projectId}/pending-time",
     "POST /projects/{projectId}/time-entries/{timeEntryId}/review",
@@ -106,7 +107,7 @@ test("development foundation keeps intake closed, protects API access and provis
   template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
     RouteKey: "POST /leads", AuthorizationType: "NONE",
   });
-  template.resourceCountIs("AWS::ApiGatewayV2::Route", 16);
+  template.resourceCountIs("AWS::ApiGatewayV2::Route", 17);
   template.hasResourceProperties("AWS::ApiGatewayV2::Stage", {
     StageName: "$default",
     DefaultRouteSettings: { ThrottlingBurstLimit: 10, ThrottlingRateLimit: 5 },

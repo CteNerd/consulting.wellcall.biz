@@ -9,6 +9,7 @@ const navigation = [
   { href: "/enterprise", label: "Enterprise" },
   { href: "/services", label: "Services" },
   { href: "/approach", label: "Our approach" },
+  { href: "/approach#owner-directed", label: "Owner-directed software" },
   { href: "/about", label: "About" },
 ];
 
@@ -264,6 +265,39 @@ function ApproachPage() {
         <div className="engagement-grid">{engagementModels.map((model) => (
           <article className="engagement-card" key={model.name}><h3>{model.name}</h3><p>{model.purpose}</p><h4>Typical output</h4><p>{model.output}</p><p className="tile-note">{model.boundary}</p></article>
         ))}</div>
+      </section>
+      <section id="owner-directed" className="content-section owner-directed">
+        <SectionHeading label="Owner-directed software / selfware" title="Start with the change you want to make.">
+          People closest to the work should be able to describe the goal and simple changes in everyday language.
+          Engineering turns that direction into reviewed, maintainable software—not unsupervised edits to live systems.
+        </SectionHeading>
+        <div className="stage-grid">
+          <article className="stage-card">
+            <span className="stage-number">01 / REQUEST</span>
+            <h3>Write down the outcome.</h3>
+            <p>For example: “When a task is marked ready, include its due date in the internal handoff note.” Add who needs it, what happens today and how you will recognize a useful result.</p>
+          </article>
+          <article className="stage-card">
+            <span className="stage-number">02 / REVIEW</span>
+            <h3>Make a small change inspectable.</h3>
+            <p>Engineering checks assumptions, permissions and edge cases, then proposes a bounded change with tests, a review point and a handover. The owner confirms whether it solves the intended problem.</p>
+          </article>
+          <article className="stage-card">
+            <span className="stage-number">03 / SCOPE</span>
+            <h3>Map the larger workflow before connecting it.</h3>
+            <p>If the request reaches inventory, billing or another system, first map the process, data, access, failure handling and ongoing ownership. That is a separate integration decision, not a hidden add-on.</p>
+          </article>
+        </div>
+        <div className="split-section owner-tradeoffs">
+          <div>
+            <h3>Buy, configure or build?</h3>
+            <p>Use an existing tool or managed product when it meets the need and the team can accept its recurring cost, data terms, limits and exit path. Custom software may fit when a distinctive workflow or integration justifies build, support and maintenance effort. Sometimes the best answer is to simplify the process and build nothing.</p>
+          </div>
+          <div>
+            <h3>Keep sensitive work accountable.</h3>
+            <p>For regulated needs, establish applicable requirements, authorized access, audit evidence, vendor agreements and independent review before choosing tools or implementation. AI is not compliance; any AI-assisted change still needs approved data boundaries, human review and testing.</p>
+          </div>
+        </div>
       </section>
       <section className="content-section split-section">
         <SectionHeading label="No surprises by design" title="Make the working agreement explicit." />

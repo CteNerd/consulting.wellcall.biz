@@ -50,6 +50,7 @@ export type TimeSubmission = {
   minutes: number;
   description: string;
 };
+export type TimeDraftUpdate = Omit<TimeSubmission, "projectId"> & { expectedVersion: number };
 export type TimeReview = {
   decision: TimeReviewDecision;
   expectedVersion: number;
@@ -110,6 +111,23 @@ export function parseTimeSubmission(value: unknown): TimeSubmission | undefined 
     workDate: input.workDate,
     minutes: input.minutes,
     description,
+  };
+}
+
+export function parseTimeDraftUpdate(value: unknown): TimeDraftUpdate | undefined {
+  const input = objectWithKeys(value, ["taskId", "workDate", "minutes", "description", "expectedVersion"]);
+  if (!input || !isProjectId(input.taskId) || !isWorkDate(input.workDate)
+    || typeof input.minutes !== "number" || !Number.isSafeInteger(input.minutes)
+    || input.minutes < 1 || input.minutes > 1440 || typeof input.description !== "string"
+    || !isExpectedVersion(input.expectedVersion)) return undefined;
+  const description = input.description.trim();
+  if (description.length > 500 || hasControls(description)) return undefined;
+  return {
+    taskId: input.taskId,
+    workDate: input.workDate,
+    minutes: input.minutes,
+    description,
+    expectedVersion: input.expectedVersion,
   };
 }
 

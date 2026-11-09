@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { handleWorkspaceRequest } from "./workspace-api.ts";
 import type { Request } from "./handler.ts";
-import type { ProjectContext, WorkspaceStore } from "./workspace-store.ts";
+import { WorkspaceConflictError, type ProjectContext, type WorkspaceStore } from "./workspace-store.ts";
 
 const projectId = "b9de9897-5f48-4a63-a872-1d1b53bd64a5";
 const taskId = "e8de9897-5f48-4a63-a872-1d1b53bd64a5";
@@ -216,4 +216,119 @@ test("time submission uses a strict versioned body and returns conflicts without
   ), { workspaceStore: store });
   assert.equal(submitted?.statusCode, 200);
   assert.equal(submits, 1);
+});
+
+test("only the owner can correct draft or rejected time; terminal statuses and stale versions conflict", async () => {
+  const correction = {
+    taskId, workDate: "2026-11-08", minutes: 45, description: "Clarified work", expectedVersion: 3,
+  };
+  let taskReads = 0;
+  let writes = 0;
+  const entry = {
+    projectId, timeEntryId: timeId, taskId, workerId: "member-1",
+    workDate: "2026-11-07", minutes: 30, description: "Work", status: "REJECTED", version: 3,
+    createdAt: "2026-11-07T00:00:00.000Z",
+  };
+  const store = {
+    getContext: async () => contributorContext,
+    getTimeEntry: async () => entry,
+    getTask: async () => {
+      taskReads += 1;
+      return { projectId, taskId, title: "Assigned", description: "", assignedToUserId: "member-1", status: "TODO", version: 0 };
+    },
+    updateTimeDraft: async (_context: ProjectContext, actor: string, current: typeof entry, update: typeof correction) => {
+      writes += 1;
+      assert.equal(actor, "member-1");
+      assert.equal(current.timeEntryId, timeId);
+      assert.equal(update.expectedVersion, 3);
+      return { ...current, ...update, status: "DRAFT", version: 4 };
+    },
+  } as unknown as WorkspaceStore;
+
+  const otherOwner = await handleWorkspaceRequest(request(
+    `/projects/${projectId}/time-entries/${timeId}`, "PATCH", correction, "member-2",
+  ), { workspaceStore: { ...store, getContext: async () => ({
+    ...contributorContext,
+    membership: { ...contributorContext.membership, userId: "member-2" },
+    assignment: { ...contributorContext.assignment, userId: "member-2" },
+  }), getTimeEntry: async () => ({ ...entry, workerId: "member-1" }) } as WorkspaceStore });
+  assert.equal(otherOwner?.statusCode, 404);
+  assert.equal(taskReads, 0);
+  assert.equal(writes, 0);
+
+  const corrected = await handleWorkspaceRequest(request(
+    `/projects/${projectId}/time-entries/${timeId}`, "PATCH", correction,
+  ), { workspaceStore: store });
+  assert.equal(corrected?.statusCode, 200);
+  assert.deepEqual(JSON.parse(corrected!.body!), {
+    ...entry, ...correction, status: "DRAFT", version: 4,
+  });
+  assert.equal(taskReads, 1);
+  assert.equal(writes, 1);
+
+  for (const status of ["SUBMITTED", "APPROVED", "REJECTED"] as const) {
+    const response = await handleWorkspaceRequest(request(
+      `/projects/${projectId}/time-entries/${timeId}`, "PATCH",
+      { ...correction, expectedVersion: status === "REJECTED" ? 2 : 3 },
+    ), { workspaceStore: {
+      ...store,
+      getTimeEntry: async () => ({ ...entry, status }),
+    } as WorkspaceStore });
+    assert.equal(response?.statusCode, 409);
+  }
+  assert.equal(writes, 1);
+});
+
+test("correction requires current app membership and project/task assignments", async () => {
+  const entry = {
+    projectId, timeEntryId: timeId, taskId, workerId: "member-1",
+    workDate: "2026-11-08", minutes: 30, description: "Work", status: "DRAFT", version: 0,
+    createdAt: "2026-11-08T00:00:00.000Z",
+  };
+  let writes = 0;
+  const body = { taskId, workDate: "2026-11-08", minutes: 30, description: "Work", expectedVersion: 0 };
+  for (const context of [
+    { ...contributorContext, membership: { ...contributorContext.membership, active: false } },
+    { ...contributorContext, assignment: { ...contributorContext.assignment, active: false } },
+  ]) {
+    const denied = await handleWorkspaceRequest(request(
+      `/projects/${projectId}/time-entries/${timeId}`, "PATCH", body,
+    ), { workspaceStore: { getContext: async () => context } as unknown as WorkspaceStore });
+    assert.equal(denied?.statusCode, 403);
+  }
+  const unassignedTask = await handleWorkspaceRequest(request(
+    `/projects/${projectId}/time-entries/${timeId}`, "PATCH", body,
+  ), { workspaceStore: {
+    getContext: async () => contributorContext,
+    getTimeEntry: async () => entry,
+    getTask: async () => ({
+      projectId, taskId, title: "Task", description: "", assignedToUserId: "member-2",
+      status: "TODO", version: 0,
+    }),
+    updateTimeDraft: async () => { writes += 1; throw new Error("must not write"); },
+  } as unknown as WorkspaceStore });
+  assert.equal(unassignedTask?.statusCode, 403);
+  assert.equal(writes, 0);
+});
+
+test("conditional correction conflicts are surfaced once without retry", async () => {
+  let writes = 0;
+  const store = {
+    getContext: async () => contributorContext,
+    getTimeEntry: async () => ({
+      projectId, timeEntryId: timeId, taskId, workerId: "member-1",
+      workDate: "2026-11-08", minutes: 30, description: "Work", status: "DRAFT", version: 0,
+      createdAt: "2026-11-08T00:00:00.000Z",
+    }),
+    getTask: async () => ({
+      projectId, taskId, title: "Task", description: "", assignedToUserId: "member-1", status: "TODO", version: 0,
+    }),
+    updateTimeDraft: async () => { writes += 1; throw new WorkspaceConflictError(); },
+  } as unknown as WorkspaceStore;
+  const result = await handleWorkspaceRequest(request(
+    `/projects/${projectId}/time-entries/${timeId}`, "PATCH",
+    { taskId, workDate: "2026-11-08", minutes: 30, description: "Work", expectedVersion: 0 },
+  ), { workspaceStore: store });
+  assert.equal(result?.statusCode, 409);
+  assert.equal(writes, 1);
 });

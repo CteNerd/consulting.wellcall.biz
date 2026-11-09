@@ -5,7 +5,7 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import type { Membership, ProjectAssignment } from "../../../packages/domain/src/authorization.ts";
 import type {
-  CreateAssignment, CreateTask, ProjectSummary, ProjectTask, TaskStatus, TimeEntry,
+  CreateAssignment, CreateTask, ProjectSummary, ProjectTask, TaskStatus, TimeDraftUpdate, TimeEntry,
   TimeReview, TimeReviewDecision, TimeSubmission,
 } from "../../../packages/domain/src/workspace.ts";
 
@@ -52,6 +52,9 @@ export type WorkspaceStore = {
   listPendingTime(context: ProjectContext, nextToken?: string): Promise<Page<TimeEntry>>;
   createTimeEntry(
     context: ProjectContext, actorId: string, submission: TimeSubmission, now: Date, timeEntryId: string,
+  ): Promise<TimeEntry>;
+  updateTimeDraft(
+    context: ProjectContext, actorId: string, entry: TimeEntry, update: TimeDraftUpdate, now: Date,
   ): Promise<TimeEntry>;
   submitTimeEntry(
     context: ProjectContext, actorId: string, entry: TimeEntry, expectedVersion: number, now: Date,
@@ -349,6 +352,56 @@ export class DynamoWorkspaceStore implements WorkspaceStore {
       putAudit(this.tableName, audit),
     ] });
     return toTimeEntry(item)!;
+  }
+
+  async updateTimeDraft(
+    context: ProjectContext, actorId: string, entry: TimeEntry, update: TimeDraftUpdate, now: Date,
+  ): Promise<TimeEntry> {
+    const projectId = entry.projectId;
+    const nextVersion = update.expectedVersion + 1;
+    const updatedAt = now.toISOString();
+    const audit = auditItem(projectId, actorId, "TIME_DRAFT_CORRECTED", "TIME_ENTRY", entry.timeEntryId, now,
+      `${entry.timeEntryId}-${nextVersion}`, update.expectedVersion, nextVersion);
+    await sendTransaction(this.client, { TransactItems: [
+      membershipCondition(this.tableName, actorId),
+      assignmentCondition(this.tableName, actorId, projectId),
+      projectCondition(this.tableName, projectId),
+      {
+        ConditionCheck: {
+          TableName: this.tableName, Key: { PK: `PROJECT#${projectId}`, SK: `TASK#${update.taskId}` },
+          ConditionExpression: "#recordType = :task AND #assignee = :actor",
+          ExpressionAttributeNames: { "#recordType": "recordType", "#assignee": "assignedToUserId" },
+          ExpressionAttributeValues: { ":task": "TASK", ":actor": actorId },
+        },
+      },
+      {
+        Update: {
+          TableName: this.tableName, Key: { PK: `PROJECT#${projectId}`, SK: `TIME#${entry.timeEntryId}` },
+          UpdateExpression: "SET taskId = :taskId, workDate = :workDate, minutes = :minutes, "
+            + "description = :description, #status = :draft, #version = :nextVersion, "
+            + "GSI3SK = :timeSortKey, updatedAt = :updatedAt, updatedBy = :actor "
+            + "REMOVE submittedAt, reviewedAt, reviewedBy, reviewDecision, reviewNote, GSI2PK, GSI2SK",
+          ConditionExpression: "#recordType = :entry AND #worker = :actor "
+            + "AND (#status = :draft OR #status = :rejected) AND #version = :expectedVersion",
+          ExpressionAttributeNames: {
+            "#recordType": "recordType", "#worker": "workerId", "#status": "status", "#version": "version",
+          },
+          ExpressionAttributeValues: {
+            ":entry": "TIME_ENTRY", ":actor": actorId, ":draft": "DRAFT", ":rejected": "REJECTED",
+            ":expectedVersion": update.expectedVersion, ":nextVersion": nextVersion,
+            ":taskId": update.taskId, ":workDate": update.workDate, ":minutes": update.minutes,
+            ":description": update.description, ":timeSortKey": `TIME#${projectId}#${update.workDate}#${entry.timeEntryId}`,
+            ":updatedAt": updatedAt,
+          },
+        },
+      },
+      putAudit(this.tableName, audit),
+    ] });
+    return {
+      projectId, timeEntryId: entry.timeEntryId, taskId: update.taskId, workerId: actorId,
+      workDate: update.workDate, minutes: update.minutes, description: update.description,
+      status: "DRAFT", version: nextVersion, createdAt: entry.createdAt,
+    };
   }
 
   async submitTimeEntry(
