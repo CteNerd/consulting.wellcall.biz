@@ -117,6 +117,7 @@ export function Workspace() {
         if (active) setStatus(error instanceof Error ? error.message : "Sign-in could not be completed.");
       })
       .finally(() => {
+        if (active) window.history.replaceState(null, "", "/?workspace");
         window.sessionStorage.removeItem(workspaceIntentKey);
         if (active) setBusy(false);
       });

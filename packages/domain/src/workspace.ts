@@ -81,7 +81,7 @@ export function parseCreateTask(value: unknown): CreateTask | undefined {
   const title = input.title.trim();
   const description = input.description.trim();
   if (title.length === 0 || title.length > 120 || description.length > 1000
-    || hasControls(title) || hasControls(description)) return undefined;
+    || hasControls(title) || hasMultilineControls(description)) return undefined;
   return { title, description, assignedToUserId: input.assignedToUserId };
 }
 
@@ -104,7 +104,7 @@ export function parseTimeSubmission(value: unknown): TimeSubmission | undefined 
     || !Number.isSafeInteger(input.minutes) || input.minutes < 1 || input.minutes > 1440
     || typeof input.description !== "string") return undefined;
   const description = input.description.trim();
-  if (description.length > 500 || hasControls(description)) return undefined;
+  if (description.length > 500 || hasMultilineControls(description)) return undefined;
   return {
     projectId: input.projectId,
     taskId: input.taskId,
@@ -121,7 +121,7 @@ export function parseTimeDraftUpdate(value: unknown): TimeDraftUpdate | undefine
     || input.minutes < 1 || input.minutes > 1440 || typeof input.description !== "string"
     || !isExpectedVersion(input.expectedVersion)) return undefined;
   const description = input.description.trim();
-  if (description.length > 500 || hasControls(description)) return undefined;
+  if (description.length > 500 || hasMultilineControls(description)) return undefined;
   return {
     taskId: input.taskId,
     workDate: input.workDate,
@@ -139,7 +139,7 @@ export function parseTimeReview(value: unknown): TimeReview | undefined {
     || (input.decision !== "APPROVED" && input.decision !== "REJECTED")
     || !isExpectedVersion(input.expectedVersion)) return undefined;
   const note = input.note === undefined ? "" : input.note;
-  if (typeof note !== "string" || note.length > 500 || hasControls(note)) return undefined;
+  if (typeof note !== "string" || note.length > 500 || hasMultilineControls(note)) return undefined;
   return { decision: input.decision, expectedVersion: input.expectedVersion, note: note.trim() };
 }
 
@@ -167,6 +167,10 @@ function isWorkDate(value: unknown): value is string {
 
 function hasControls(value: string): boolean {
   return /[\u0000-\u001f\u007f]/.test(value);
+}
+
+function hasMultilineControls(value: string): boolean {
+  return /[\u0000-\u0009\u000b\u000c\u000e-\u001f\u007f]/.test(value);
 }
 
 function objectWithKeys(value: unknown, expected: string[]): Record<string, unknown> | undefined {

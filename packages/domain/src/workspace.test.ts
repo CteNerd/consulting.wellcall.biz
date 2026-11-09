@@ -44,6 +44,28 @@ test("time review and task transitions require supported, versioned state change
   assert.equal(canTransitionTask("TODO", "TODO"), false);
 });
 
+test("free-text descriptions and review notes accept paragraphs but reject other controls", () => {
+  const time = { projectId, taskId, workDate: "2026-11-08", minutes: 45 };
+  const task = { title: "Build API", assignedToUserId: "member-1" };
+  const correction = { taskId, workDate: time.workDate, minutes: time.minutes, expectedVersion: 0 };
+  const review = { decision: "REJECTED", expectedVersion: 1 };
+  const description = "First paragraph.\n\nSecond paragraph.\r\nFollow-up.";
+  assert.equal(parseCreateTask({ ...task, description })?.description, description);
+  assert.equal(parseTimeSubmission({ ...time, description })?.description, description);
+  assert.equal(parseTimeDraftUpdate({ ...correction, description })?.description, description);
+  assert.equal(parseTimeReview({ ...review, note: description })?.note, description);
+  for (const control of ["\u0000", "\t", "\u001f", "\u007f"]) {
+    const invalid = `First${control}second`;
+    assert.equal(parseCreateTask({ ...task, description: invalid }), undefined);
+    assert.equal(parseTimeSubmission({ ...time, description: invalid }), undefined);
+    assert.equal(parseTimeDraftUpdate({ ...correction, description: invalid }), undefined);
+    assert.equal(parseTimeReview({ ...review, note: invalid }), undefined);
+  }
+  for (const title of ["First\nsecond", "First\rsecond"]) {
+    assert.equal(parseCreateTask({ ...task, title, description }), undefined);
+  }
+});
+
 test("time draft correction accepts only bounded submission fields and an expected version", () => {
   assert.deepEqual(parseTimeDraftUpdate({
     taskId, workDate: "2026-11-08", minutes: 45, description: "  Corrected work  ", expectedVersion: 3,

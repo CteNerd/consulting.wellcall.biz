@@ -52,7 +52,7 @@ test("every project route requires active app membership and an active matching 
   assert.equal(taskReads, 0);
 });
 
-test("contributors cannot create time against another worker's task or forge their identity", async () => {
+test("time draft creation enforces task ownership and handles asynchronous storage failures", async (t) => {
   let writes = 0;
   const store = {
     getContext: async () => contributorContext,
@@ -73,6 +73,26 @@ test("contributors cannot create time against another worker's task or forge the
     taskId, workDate: "2026-11-08", minutes: 45, description: "Implementation", workerId: "other-member",
   }), { workspaceStore: store });
   assert.equal(forged?.statusCode, 400);
+
+  store.getTask = async () => ({
+    projectId, taskId, title: "Assigned task", description: "", assignedToUserId: "member-1",
+    status: "TODO", version: 0, createdAt: "2026-11-08T00:00:00.000Z",
+    updatedAt: "2026-11-08T00:00:00.000Z",
+  });
+  const logged = t.mock.method(console, "error", () => {});
+  for (const [error, statusCode] of [
+    [new WorkspaceConflictError(), 409],
+    [new Error("private storage details"), 500],
+  ] as const) {
+    store.createTimeEntry = async () => { writes += 1; throw error; };
+    const failed = await handleWorkspaceRequest(request(`/projects/${projectId}/time-entries`, "POST", {
+      taskId, workDate: "2026-11-08", minutes: 45, description: "Implementation",
+    }), { workspaceStore: store });
+    assert.equal(failed?.statusCode, statusCode);
+    assert.doesNotMatch(failed!.body!, /private storage details/);
+  }
+  assert.equal(writes, 2);
+  assert.equal(logged.mock.callCount(), 1);
 });
 
 test("only an assigned manager can create a task for an active project assignee", async () => {

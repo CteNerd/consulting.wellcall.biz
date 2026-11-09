@@ -58,7 +58,7 @@ export function createUatRehearsal(): RehearsalWorkspaceClient & { prepareConfli
   }
 
   function isManager(): boolean {
-    return personaId === "manager" || personaId === "administrator";
+    return assignments.get(currentPersona().userId) === "manager" || personaId === "administrator";
   }
 
   function hasProjectAssignment(): boolean {
@@ -163,6 +163,7 @@ export function createUatRehearsal(): RehearsalWorkspaceClient & { prepareConfli
         throw new WorkspaceRequestError(400);
       }
       if (input.role === "manager" && personaId !== "administrator") throw new WorkspaceRequestError(403);
+      if (assignments.has(input.userId)) throw new WorkspaceRequestError(409);
       maybeConflict();
       assignments.set(input.userId, input.role);
       return Promise.resolve({ userId: input.userId, projectId, role: input.role, active: true });

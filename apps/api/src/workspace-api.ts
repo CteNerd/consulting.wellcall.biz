@@ -111,7 +111,7 @@ export async function handleWorkspaceRequest(
       return await reviewTimeEntry(event, store, context, actorId, reviewMatch[1]!, dependencies);
     }
     if (method === "POST" && suffix === "time-entries") {
-      return createTimeEntry(event, store, context, actorId, dependencies);
+      return await createTimeEntry(event, store, context, actorId, dependencies);
     }
     return response(404, { error: "Not found" });
   } catch (error) {

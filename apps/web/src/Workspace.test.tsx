@@ -3,6 +3,8 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { App } from "./App.tsx";
 import { workspaceIntentKey } from "./Workspace.tsx";
 import type { WorkspaceTask, WorkspaceTimeEntry } from "./workspace-client.ts";
+import { parseWorkspacePage, parseWorkspaceProject } from "./workspace-client.ts";
+import { createUatRehearsal } from "./uat-rehearsal.ts";
 
 const authMock = vi.hoisted(() => ({
   beginSignIn: vi.fn(),
@@ -61,6 +63,28 @@ test("the public footer offers a workspace entry without bypassing sign-in", asy
   expect(screen.getByRole("heading", { name: "Assigned projects" })).toBeDefined();
   expect(screen.getByRole("button", { name: "Sign in" })).toBeDefined();
   expect(screen.queryByText("Website delivery")).toBeNull();
+});
+
+test("workspace callbacks restore a refreshable workspace URL rather than the admin inbox", async () => {
+  authMock.completeSignIn.mockImplementation(async () => {
+    window.history.replaceState(null, "", "/?admin");
+    return "verified-access-token";
+  });
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    const path = new URL(String(input)).pathname;
+    if (path === "/projects") return json(200, { projects: [project], nextToken: null });
+    if (path === "/my/time-entries") return json(200, { timeEntries: [], nextToken: null });
+    if (path === "/me") return json(200, { userId: "worker_1" });
+    throw new Error(`Unexpected request: ${path}`);
+  }));
+  enterWorkspace();
+  await screen.findByText("Website delivery");
+  expect(window.location.search).toBe("?workspace");
+  expect(window.sessionStorage.getItem(workspaceIntentKey)).toBeNull();
+  cleanup();
+  render(<App />);
+  expect(screen.getByRole("heading", { name: "Assigned projects" })).toBeDefined();
+  expect(screen.getByRole("button", { name: "Sign in" })).toBeDefined();
 });
 
 test("a contributor can draft and submit own time but sees no manager controls", async () => {
@@ -401,6 +425,42 @@ test("a 401 clears the project list and returns to a sign-in state", async () =>
   expect(screen.queryByText("Website delivery")).toBeNull();
   expect(screen.getByRole("button", { name: "Sign in" })).toBeDefined();
   expect(authMock.clearSession).toHaveBeenCalledTimes(1);
+});
+
+test("synthetic manager permissions follow newly created assignments", async () => {
+  const client = createUatRehearsal();
+  client.selectPersona("administrator");
+  const projects = parseWorkspacePage(await client.request("/projects"), "projects", parseWorkspaceProject);
+  const path = `/projects/${projects.items[0]!.projectId}`;
+  await client.request(`${path}/assignments`, {
+    method: "POST", body: { userId: "uat-unassigned", role: "manager" },
+  });
+  client.selectPersona("unassigned");
+  await expect(client.request(`${path}/tasks`)).resolves.toMatchObject({
+    tasks: [expect.objectContaining({ assignedToUserId: "uat-contributor" })],
+  });
+  await expect(client.request(`${path}/assignments`)).resolves.toMatchObject({
+    assignments: expect.arrayContaining([expect.objectContaining({ userId: "uat-unassigned", role: "manager" })]),
+  });
+  await expect(client.request(`${path}/pending-time`)).resolves.toMatchObject({ timeEntries: [] });
+  await expect(client.request(`${path}/tasks`, {
+    method: "POST", body: { title: "Review handoff", description: "", assignedToUserId: "uat-contributor" },
+  })).resolves.toMatchObject({ title: "Review handoff", status: "TODO" });
+});
+
+test("synthetic duplicate assignments conflict without changing the existing role", async () => {
+  const client = createUatRehearsal();
+  client.selectPersona("administrator");
+  const projects = parseWorkspacePage(await client.request("/projects"), "projects", parseWorkspaceProject);
+  const path = `/projects/${projects.items[0]!.projectId}`;
+  await expect(async () => client.request(`${path}/assignments`, {
+    method: "POST", body: { userId: "uat-contributor", role: "manager" },
+  })).rejects.toMatchObject({ statusCode: 409 });
+  await expect(client.request(`${path}/assignments`)).resolves.toMatchObject({
+    assignments: expect.arrayContaining([expect.objectContaining({ userId: "uat-contributor", role: "contributor" })]),
+  });
+  client.selectPersona("contributor");
+  await expect(async () => client.request(`${path}/pending-time`)).rejects.toMatchObject({ statusCode: 403 });
 });
 
 test("missing membership is displayed as an access error without fake project data", async () => {
