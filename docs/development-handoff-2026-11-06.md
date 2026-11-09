@@ -18,8 +18,9 @@ versioned persistence and aggregate outbox publishing; the deployed stack and
 preview do not include these changes. Founder dashboard
 [PR #10](https://github.com/CteNerd/roddy.tomlin.life/pull/10) and execution-role
 [PR #11](https://github.com/CteNerd/roddy.tomlin.life/pull/11) are now merged
-after review fixes and passing CI. The original dirty Founder worktrees remain
-preserved; their older contents must not overwrite reviewed `main`.
+after review fixes and passing CI. The original Founder worktree contents are
+preserved in pushed archive branches; their older contents must not overwrite
+reviewed `main`.
 
 **Public intake, enrollment and Founder owner access remain closed.** No initial
 Cognito users or production resources were created. Only the two approved
@@ -90,7 +91,14 @@ The verified baseline is now committed and pushed:
   checkpoint `c48a8d8` (45 foundation tests, lint and web build passed).
 - Founder continuation uses a new isolated `roddy.tomlin.life-uat` worktree
   and `feat/founder-uat-workflows-20261109`, based on reviewed `e035a34`.
-  Both original dirty Founder worktrees remain untouched.
+  Both original Founder working-copy contents remain unchanged. At the owner's
+  subsequent request to commit/push all 29 remaining changes, their exact
+  pre-review versions were saved as `8427bfe` on
+  `archive/founder-execution-worktree-20261109` and `88e3771` on
+  `archive/founder-dashboard-worktree-20261109`. Both original worktrees are
+  now clean. These archives are preservation-only, not merge candidates:
+  PRs #10/#11 already contain reviewed replacements. New Founder development
+  continues on the validated UAT branch.
 
 Credential-free checks now also run on `feat/**` pushes in all three
 repositories, so protecting progress does not require opening a PR. Check jobs
