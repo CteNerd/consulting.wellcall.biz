@@ -33,6 +33,37 @@ without repeating this initial infrastructure bootstrap.
 
 ## Development continuation
 
+### Progress protection and UAT scope (2026-11-09)
+
+The verified baseline is now committed and pushed:
+
+- Consulting: `feat/consulting-uat-workflows-20261109`,
+  checkpoint `89a5da2` (107 foundation tests, lint and web build passed).
+- Community: `feat/community-uat-workflows-20261109`,
+  checkpoint `c48a8d8` (45 foundation tests, lint and web build passed).
+- Founder continuation uses a new isolated `roddy.tomlin.life-uat` worktree
+  and `feat/founder-uat-workflows-20261109`, based on reviewed `e035a34`.
+  Both original dirty Founder worktrees remain untouched.
+
+Credential-free checks now also run on `feat/**` pushes in all three
+repositories, so protecting progress does not require opening a PR. Check jobs
+retain only `contents: read`; deployment workflows and production approval
+rules are unchanged. Source pushes are not a merge or a deployment.
+
+The next increment prepares opt-in loopback-only synthetic workflow
+rehearsals and closes source UI/workflow gaps. Synthetic personas, consent,
+screening, project data and aggregate totals must be clearly labeled and
+excluded from production web artifacts. They must never send requests or
+events to live AWS. These rehearsals are not proof of Cognito, persistence,
+event delivery, safeguarding readiness or regulatory compliance. Real-user
+UAT and live activation still require separately reviewed configuration and
+operational approval.
+
+Read-only live checks on 2026-11-09 returned healthy identities for all three
+development APIs and 401 for anonymous Consulting/Community identity requests
+and Founder metrics. No user, application, project, event or access grant was
+created.
+
 The approved CUT BLOCK brand meaning is **Come Up Through Building, Learning,
 Opportunity & Competition**. Public-site work must use that exact phrase rather
 than invent a different expansion. CUT BLOCK and Third Down Technologies remain
