@@ -12,6 +12,7 @@ test("preview has accessible navigation and no premature inquiry or payment coll
   expect(screen.getByRole("navigation", { name: "Main navigation" })).toBeDefined();
   expect(screen.getByRole("heading", { level: 1 }).textContent).toContain("game plan");
   expect(screen.getAllByText("Rethink. Create. Transform.").length).toBeGreaterThan(0);
+  expect(screen.getByText(/Practical technology consulting for small businesses and established teams/)).toBeDefined();
   expect(screen.getByRole("link", { name: "Skip to content" }).getAttribute("href")).toBe("#main");
   expect(document.querySelector("form")).toBeNull();
   expect(screen.getByText(/Intake is closed in this preview/)).toBeDefined();
