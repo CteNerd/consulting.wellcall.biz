@@ -79,7 +79,7 @@ function Home() {
           <p className="eyebrow">Practical technology. A considered game plan.</p>
           <h1 id="page-title">Every great idea deserves a <em>game plan.</em></h1>
           <p className="hero-philosophy">{brand.philosophy}</p>
-          <p className="hero-description">Rethink what is possible. Create a pathway from idea to implementation. Transform how your business works—with technology chosen for the problem.</p>
+          <p className="hero-description">Practical technology consulting for small businesses and established teams. Solve the workflow or systems problem in front of you with a right-sized plan your people can own.</p>
           <div className="hero-actions">
             <a className="button" href="#your-next-move">Find your starting point <span aria-hidden="true">↓</span></a>
             <a className="text-link" href="/services">Explore services <Arrow /></a>
