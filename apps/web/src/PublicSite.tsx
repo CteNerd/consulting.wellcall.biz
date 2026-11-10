@@ -354,6 +354,7 @@ function FaqPage() {
 }
 
 function ContactPage() {
+  const { publicBrand } = presentation(import.meta.env);
   return (
     <>
       <PageIntro label="Discovery preparation / intake closed" title="A clearer brief is a better first move."><p>{publicCopy("Discovery booking and public inquiries are closed.", "Discovery booking and public inquiries are closed in this development preview.")} You can still prepare a useful outline of the problem—without sharing private information here.</p></PageIntro>
@@ -370,7 +371,8 @@ function ContactPage() {
       <section className="intake-panel" aria-labelledby="intake-title">
         <p className="eyebrow">{publicCopy("Discovery preparation", "Development preview")}</p><h2 id="intake-title">Intake status</h2>
         <LeadForm />
-        <p>Do not share passwords, API keys, customer records or confidential business documents. This site has no live calendar, checkout or public contact address.</p>
+        {publicBrand && <p>Business line: <a href="tel:+12816927522">281-692-7522</a>. Discovery booking and public intake remain closed.</p>}
+        <p>Do not share passwords, API keys, customer records or confidential business documents. This site has no live calendar or checkout.</p>
       </section>
       <section className="content-section">
         <SectionHeading label="Keep exploring" title="Get a feel for the right starting point." />
@@ -401,6 +403,7 @@ function resolvePage(path: string): { title: string; content: ReactNode } {
 }
 
 export function PublicSite({ adminConfigured }: { adminConfigured: boolean }) {
+  const { publicBrand } = presentation(import.meta.env);
   const path = window.location.pathname.replace(/\/+$/, "") || "/";
   const page = resolvePage(path);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -438,7 +441,7 @@ export function PublicSite({ adminConfigured }: { adminConfigured: boolean }) {
         {page.content}
       </main>
       <footer className="site-footer">
-        <div className="footer-top"><div><a className="footer-brand" href="/">{brand.shortName}</a><p>{brand.philosophy}</p><p>Practical technology.<br />A considered game plan.</p></div>
+        <div className="footer-top"><div><a className="footer-brand" href="/">{brand.shortName}</a><p>{brand.philosophy}</p><p>Practical technology.<br />A considered game plan.</p>{publicBrand && <p>Business line: <a href="tel:+12816927522">281-692-7522</a></p>}</div>
           <nav aria-label="Footer navigation"><a href="/services">Services</a><a href="/approach">Process & engagements</a><a href="/about">About</a><a href="/faq">FAQ</a><a href="/contact">Discovery preparation</a><a href="/?workspace">Team workspace</a>{adminConfigured && <a href="/?admin">Admin inbox</a>}</nav>
         </div>
         <div className="footer-bottom"><p>{publicCopy(`${brand.name} · ${brand.philosophy}`, `${brand.name} is a provisional display brand. Public launch remains subject to approval.`)}</p><p>{publicCopy("Intake closed. No booking or payment collection.", "Development preview. Intake closed. No booking or payment collection.")}</p></div>

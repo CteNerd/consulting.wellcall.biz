@@ -10,9 +10,15 @@ test("candidate binds exact bytes, file inventory, reviewed SHA and release run"
   t.after(() => rmSync(directory, { recursive: true }));
   writeFileSync(join(directory, "index.html"), "<html>Intake closed</html>");
   writeFileSync(join(directory, "assets/index-hash.js"), "closed");
+  const imagePath = join(directory, "assets/social-card-hash.jpg");
+  const image = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+  writeFileSync(imagePath, image);
   const sha = "a".repeat(40);
   const hash = createCandidate(directory, sha, "123");
   verifyCandidate(directory, hash, sha, "123");
+  writeFileSync(imagePath, Buffer.from([0xff, 0xd8, 0x00, 0xd9]));
+  assert.throws(() => verifyCandidate(directory, hash, sha, "123"), /bytes/);
+  writeFileSync(imagePath, image);
   assert.throws(() => verifyCandidate(directory, "b".repeat(64), sha, "123"), /digest/);
   assert.throws(() => verifyCandidate(directory, hash, "b".repeat(40), "123"), /provenance/);
   assert.throws(() => verifyCandidate(directory, hash, sha, "124"), /provenance/);

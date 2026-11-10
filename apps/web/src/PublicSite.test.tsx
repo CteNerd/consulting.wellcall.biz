@@ -26,6 +26,9 @@ test.each(publicRoutes)("explicit production presentation at %s publishes the br
   expect(document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.href)
     .toBe(`https://thirddowntech.com${path}`);
   expect(screen.queryByRole("link", { name: "Admin inbox" })).toBeNull();
+  for (const link of screen.getAllByRole("link", { name: "281-692-7522" })) {
+    expect(link.getAttribute("href")).toBe("tel:+12816927522");
+  }
 });
 
 test("public SEO requires explicit presentation, never just a production build, and a safe origin", () => {
@@ -35,6 +38,14 @@ test("public SEO requires explicit presentation, never just a production build, 
   const env = { VITE_PUBLIC_PRESENTATION: "production", VITE_PUBLIC_ORIGIN: "https://thirddowntech.com" };
   expect(presentationHtml(html, env)).not.toMatch(/noindex|preview/i);
   expect(presentationHtml(html, env)).toContain('href="https://thirddowntech.com/"');
+  const metadata = new DOMParser().parseFromString(presentationHtml(html, env), "text/html");
+  expect(metadata.querySelector('meta[property="og:image"]')?.getAttribute("content"))
+    .toBe("https://thirddowntech.com/assets/social-card-4cfaaa052494.jpg");
+  expect(metadata.querySelector('meta[name="twitter:image"]')?.getAttribute("content"))
+    .toBe("https://thirddowntech.com/assets/social-card-4cfaaa052494.jpg");
+  expect(metadata.querySelector('meta[name="twitter:card"]')?.getAttribute("content"))
+    .toBe("summary_large_image");
+  expect(presentationHtml(html, { VITE_PUBLIC_PRESENTATION: "production" })).not.toContain("og:image");
   for (const origin of ["https://dev.thirddowntech.com", "https://evil.example", 'https://thirddowntech.com/"']) {
     expect(() => presentation({ ...env, VITE_PUBLIC_ORIGIN: origin })).toThrow(/SEO origin/);
   }
