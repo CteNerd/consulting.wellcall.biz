@@ -40,9 +40,9 @@ test("public SEO requires explicit presentation, never just a production build, 
   expect(presentationHtml(html, env)).toContain('href="https://thirddowntech.com/"');
   const metadata = new DOMParser().parseFromString(presentationHtml(html, env), "text/html");
   expect(metadata.querySelector('meta[property="og:image"]')?.getAttribute("content"))
-    .toBe("https://thirddowntech.com/assets/social-card-4cfaaa052494.jpg");
+    .toBe("https://thirddowntech.com/assets/third-down-social-8e2cf34fa2ac.jpg");
   expect(metadata.querySelector('meta[name="twitter:image"]')?.getAttribute("content"))
-    .toBe("https://thirddowntech.com/assets/social-card-4cfaaa052494.jpg");
+    .toBe("https://thirddowntech.com/assets/third-down-social-8e2cf34fa2ac.jpg");
   expect(metadata.querySelector('meta[name="twitter:card"]')?.getAttribute("content"))
     .toBe("summary_large_image");
   expect(presentationHtml(html, { VITE_PUBLIC_PRESENTATION: "production" })).not.toContain("og:image");

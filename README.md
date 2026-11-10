@@ -62,8 +62,10 @@ Approved production presentation shows the business line, 281-692-7522, in the
 footer and discovery-preparation page. Intake and booking remain closed.
 With the explicit production origin, the initial HTML includes Open Graph and
 Twitter large-image metadata pointing to
-`apps/web/public/assets/social-card-4cfaaa052494.jpg`.
-This generated 1200×630 illustration is shared with CUT BLOCK and is published
+`apps/web/public/assets/third-down-social-8e2cf34fa2ac.jpg`.
+This generated 1200×630 card uses Third Down's name, philosophy, brand colors,
+and a technology/strategy playbook illustration. It is distinct from CUT BLOCK's
+mentorship artwork and is published
 by Vite with the web candidate as an immutable, content-addressed asset. When
 replacing the artwork, update the filename hash and metadata together. Default previews remain noindex without public
 social metadata or the business line.
