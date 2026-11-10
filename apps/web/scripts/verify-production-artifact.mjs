@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadEnv } from "vite";
+import { presentation } from "../src/presentation.ts";
 
 const outputDirectory = fileURLToPath(new URL("../dist/", import.meta.url));
 
@@ -28,4 +30,20 @@ for (const marker of [
   "NOT REAL AUTH · NOT DYNAMODB · NOT A LIVE SERVICE",
 ]) {
   assert.equal(artifact.includes(marker), false, `Production artifact contains UAT fixture marker: ${marker}`);
+}
+
+const config = presentation({ ...loadEnv("production", process.cwd(), "VITE_"), ...process.env });
+const html = await readFile(join(outputDirectory, "index.html"), "utf8");
+if (config.origin) {
+  for (const tag of [
+    `<meta property="og:image" content="${config.origin}/assets/social-card-4cfaaa052494.jpg" />`,
+    `<meta name="twitter:image" content="${config.origin}/assets/social-card-4cfaaa052494.jpg" />`,
+    '<meta name="twitter:card" content="summary_large_image" />',
+    '<meta property="og:image:width" content="1200" />',
+    '<meta property="og:image:height" content="630" />',
+  ]) assert.ok(html.includes(tag), `Production social metadata missing: ${tag}`);
+  const image = await readFile(join(outputDirectory, "assets/social-card-4cfaaa052494.jpg"));
+  assert.equal(image.readUInt16BE(0), 0xffd8, "Social preview must be a published JPEG");
+} else {
+  assert.ok(!html.includes("og:image") && !html.includes("twitter:image"), "Preview must not publish production social metadata");
 }

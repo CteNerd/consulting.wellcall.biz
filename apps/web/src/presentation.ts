@@ -18,5 +18,21 @@ export function presentationHtml(html: string, env: Record<string, unknown>): st
     .replace('    <meta name="robots" content="noindex, nofollow" />\n', "")
     .replace("Development preview: practical engineering", "Practical engineering")
     .replace("Third Down Technologies | Development preview", "Third Down Technologies | Rethink. Create. Transform.")
-    .replace("</head>", `${config.origin ? `  <link rel="canonical" href="${config.origin}/" />\n  ` : ""}</head>`);
+    .replace("</head>", `${config.origin ? `  <link rel="canonical" href="${config.origin}/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Third Down Technologies" />
+    <meta property="og:title" content="Third Down Technologies | Rethink. Create. Transform." />
+    <meta property="og:description" content="Practical engineering, digital foundations and technology leadership for small businesses and enterprise teams. Intake closed." />
+    <meta property="og:url" content="${config.origin}/" />
+    <meta property="og:image" content="${config.origin}/assets/social-card-4cfaaa052494.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Sculptural building blocks and connected pathways representing thoughtful progress and growth." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Third Down Technologies | Rethink. Create. Transform." />
+    <meta name="twitter:description" content="Practical engineering, digital foundations and technology leadership for small businesses and enterprise teams. Intake closed." />
+    <meta name="twitter:image" content="${config.origin}/assets/social-card-4cfaaa052494.jpg" />
+    <meta name="twitter:image:alt" content="Sculptural building blocks and connected pathways representing thoughtful progress and growth." />
+  ` : ""}</head>`);
 }

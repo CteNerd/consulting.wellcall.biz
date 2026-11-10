@@ -56,6 +56,18 @@ Confirmed hosts are `thirddowntech.com`, `dev.thirddowntech.com` and
 certificates, cutover and protected production environment approval remain gates.
 Scaffolding must not automatically deploy production.
 
+## Public contact and link previews
+
+Approved production presentation shows the business line, 281-692-7522, in the
+footer and discovery-preparation page. Intake and booking remain closed.
+With the explicit production origin, the initial HTML includes Open Graph and
+Twitter large-image metadata pointing to
+`apps/web/public/assets/social-card-4cfaaa052494.jpg`.
+This generated 1200×630 illustration is shared with CUT BLOCK and is published
+by Vite with the web candidate as an immutable, content-addressed asset. When
+replacing the artwork, update the filename hash and metadata together. Default previews remain noindex without public
+social metadata or the business line.
+
 ## Legacy development commands (historical)
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).

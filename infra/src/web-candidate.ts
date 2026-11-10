@@ -14,7 +14,7 @@ function candidateFiles(directory: string, prefix = ""): Record<string, string> 
     const entry = lstatSync(join(directory, path));
     if (entry.isDirectory() && path === "assets") {
       Object.assign(files, candidateFiles(directory, "assets/"));
-    } else if (entry.isFile() && /^(?:index\.html|assets\/[a-zA-Z0-9_-]+\.(?:js|css))$/.test(path)) {
+    } else if (entry.isFile() && /^(?:index\.html|assets\/[a-zA-Z0-9_-]+\.(?:js|css|jpg))$/.test(path)) {
       files[path] = digest(readFileSync(join(directory, path)));
     } else {
       throw new Error(`Unexpected candidate path: ${path}`);
