@@ -10,12 +10,12 @@ afterEach(() => {
 test("preview has accessible navigation and no premature inquiry or payment collection", () => {
   render(<App />);
   expect(screen.getByRole("navigation", { name: "Main navigation" })).toBeDefined();
-  expect(screen.getByRole("heading", { level: 1 }).textContent).toContain("game plan");
+  expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Technology that earns its place in your business.");
   expect(screen.getAllByText("Rethink. Create. Transform.").length).toBeGreaterThan(0);
-  expect(screen.getByText(/Practical technology consulting for small businesses and established teams/)).toBeDefined();
+  expect(screen.getByText(/We help growing businesses and engineering teams decide what to build/)).toBeDefined();
   expect(screen.getByRole("link", { name: "Skip to content" }).getAttribute("href")).toBe("#main");
   expect(document.querySelector("form")).toBeNull();
-  expect(screen.getByText(/Intake is closed in this preview/)).toBeDefined();
+  expect(screen.getAllByText(/Inquiries are not open yet/).length).toBeGreaterThan(0);
 });
 
 test("admin route exposes no inbox or sign-in when required settings are absent", () => {

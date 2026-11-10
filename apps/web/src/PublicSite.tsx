@@ -58,13 +58,48 @@ function ServiceCards({ selection = services }: { selection?: Service[] }) {
   );
 }
 
+type ProjectStory = {
+  title: string;
+  challenge: string;
+  decision: string;
+  implementation: string;
+};
+
+const illustrativeStories: ProjectStory[] = [
+  {
+    title: "A growing business is repeating the same work",
+    challenge: "Customer details move between disconnected tools and manual handoffs.",
+    decision: "Map the workflow and compare a process change or existing integration before considering custom software.",
+    implementation: "Agree the smallest useful change, its owner, and how the team will maintain it.",
+  },
+  {
+    title: "An established system is difficult to change",
+    challenge: "A team faces fragile releases, unclear dependencies, or growing delivery risk.",
+    decision: "Identify what can be improved incrementally before proposing a replacement.",
+    implementation: "Define a bounded change with acceptance checks, rollback steps, and an operational handover.",
+  },
+];
+
+function ProjectStoryCard({ story }: { story: ProjectStory }) {
+  return (
+    <article className="scenario-card">
+      <h3>{story.title}</h3>
+      <dl>
+        <div><dt>Challenge</dt><dd>{story.challenge}</dd></div>
+        <div><dt>Decision</dt><dd>{story.decision}</dd></div>
+        <div><dt>Implementation</dt><dd>{story.implementation}</dd></div>
+      </dl>
+    </article>
+  );
+}
+
 function NextStep() {
   return (
     <aside className="next-step" aria-labelledby="next-step-title">
       <div>
         <p className="eyebrow">A useful next step</p>
         <h2 id="next-step-title">Start with the problem, not the platform.</h2>
-        <p>{publicCopy("Intake is closed. In the meantime, get clear on the change you want to make.", "Intake is closed in this preview. In the meantime, get clear on the change you want to make.")}</p>
+        <p>{publicCopy("Inquiries are not open yet. In the meantime, get clear on the change you want to make.", "Inquiries are not open yet in this development preview. You can still prepare a useful outline.")}</p>
       </div>
       <a className="button" href="/contact">Prepare for discovery <Arrow /></a>
     </aside>
@@ -76,13 +111,14 @@ function Home() {
     <>
       <section className="home-hero" aria-labelledby="page-title">
         <div className="hero-content">
-          <p className="eyebrow">Practical technology. A considered game plan.</p>
-          <h1 id="page-title">Every great idea deserves a <em>game plan.</em></h1>
+          <p className="eyebrow">Technology consulting for growing businesses and engineering teams</p>
+          <h1 id="page-title">Technology that earns its place in your business.</h1>
+          <p className="hero-description">We help growing businesses and engineering teams decide what to build, what to buy, and what to improve—then turn the right decision into a solution that works.</p>
           <p className="hero-philosophy">{brand.philosophy}</p>
-          <p className="hero-description">Practical technology consulting for small businesses and established teams. Solve the workflow or systems problem in front of you with a right-sized plan your people can own.</p>
+          <p className="hero-supporting">Every great idea deserves a game plan.</p>
           <div className="hero-actions">
-            <a className="button" href="#your-next-move">Find your starting point <span aria-hidden="true">↓</span></a>
-            <a className="text-link" href="/services">Explore services <Arrow /></a>
+            <a className="button" href="/services">Explore solutions <Arrow /></a>
+            <a className="text-link" href="/approach">See how we work <Arrow /></a>
           </div>
         </div>
         <div className="game-plan" aria-hidden="true">
@@ -96,44 +132,69 @@ function Home() {
           <span className="plan-caption">THE NEXT MOVE MATTERS.</span>
         </div>
       </section>
-      <div className="principle-strip"><span>Business goals first</span><span>Right-sized technology</span><span>Built for real-world ownership</span></div>
       <section id="your-next-move" className="content-section">
-        <SectionHeading label="Two starting points. One approach." title="Where are you headed?">
-          Different businesses need different game plans. Start with the situation that sounds like yours.
+        <SectionHeading label="Start with the work" title="Recognize the problem. Find the right move.">
+          Choose the situation that sounds familiar. The details help point to a useful next step—not a predetermined service.
         </SectionHeading>
-        <div className="audience-grid">
-          <article className="audience-card">
-            <span className="card-index">01 / SMALL BUSINESS</span>
-            <h3>Make technology work for your business.</h3>
-            <p>A clearer website. Connected tools. Less manual work. Build a practical foundation without taking on an enterprise-sized system.</p>
-            <a className="text-link" href="/small-business">Small business solutions <Arrow /></a>
+        <div className="problem-grid">
+          <article className="problem-card">
+            <span className="card-index">01 / GROWING BUSINESS</span>
+            <h3>Your business is growing. Your tools aren't keeping up.</h3>
+            <p>Improve digital foundations, connect useful tools, and reduce manual work.</p>
+            <a className="text-link" href="/small-business">Explore business foundations <Arrow /></a>
           </article>
-          <article className="audience-card enterprise-card">
-            <span className="card-index">02 / ENTERPRISE & ESTABLISHED TEAMS</span>
-            <h3>Move complex work forward.</h3>
-            <p>Architecture, integrations and delivery support for teams navigating legacy systems, growing demands and consequential technology decisions.</p>
-            <a className="text-link" href="/enterprise">Enterprise engineering <Arrow /></a>
+          <article className="problem-card">
+            <span className="card-index">02 / TECHNOLOGY DECISION</span>
+            <h3>You have an idea. Should you buy, connect, or build?</h3>
+            <p>Compare options objectively, then shape a practical prototype or delivery plan when it fits.</p>
+            <a className="text-link" href="/approach#owner-directed">Explore the decision process <Arrow /></a>
+          </article>
+          <article className="problem-card">
+            <span className="card-index">03 / ENGINEERING COMPLEXITY</span>
+            <h3>Your systems are harder and more expensive to change.</h3>
+            <p>Assess architecture, cloud costs, engineering needs, and ways to modernize incrementally.</p>
+            <a className="text-link" href="/enterprise">Explore engineering support <Arrow /></a>
           </article>
         </div>
       </section>
       <section className="content-section muted-section">
-        <SectionHeading label="How we can help" title="From first foundations to the next big decision.">
-          Five ways to address the work in front of you—not five reasons to buy more technology.
+        <SectionHeading label="Illustrative scenarios — not client case studies" title="What thoughtful project decisions can look like.">
+          These examples describe possible approaches, not client engagements or measured outcomes.
         </SectionHeading>
-        <ServiceCards />
+        <div className="scenario-grid">
+          {illustrativeStories.map((story) => <ProjectStoryCard key={story.title} story={story} />)}
+        </div>
       </section>
-      <section className="content-section">
-        <SectionHeading label="The way forward" title={brand.philosophy} />
-        <div className="stage-grid">
-          {stages.map((stage, index) => (
-            <article className="stage-card" key={stage.name}>
-              <span className="stage-number">0{index + 1}</span>
-              <h3>{stage.name}</h3>
-              <p>{stage.body}</p>
+      <section className="content-section decision-section">
+        <SectionHeading label="Fit before features" title="Not everything needs to be custom-built.">
+          Our job is to recommend the right option—not the most expensive one.
+        </SectionHeading>
+        <div className="decision-grid">
+          {[
+            ["Buy", "Adopt a suitable managed product or existing platform."],
+            ["Connect", "Integrate the tools already in use."],
+            ["Improve", "Simplify or modernize the current process or system."],
+            ["Build", "Engineer custom software when the requirements and economics justify it."],
+          ].map(([name, description]) => (
+            <article className="decision-card" key={name}>
+              <h3>{name}</h3>
+              <p>{description}</p>
             </article>
           ))}
         </div>
-        <a className="text-link" href="/approach">See the process and engagement options <Arrow /></a>
+        <p className="decision-note">Compare total cost, maintenance ownership, data portability, and whether the business can make routine changes independently. <a href="/approach#owner-directed">Learn about owner-directed software <Arrow /></a></p>
+      </section>
+      <section className="content-section muted-section">
+        <SectionHeading label="Ways to work together" title="A clear scope for the support you need.">
+          Engagements are shaped around the problem and available capacity; these are service models, not open booking offers.
+        </SectionHeading>
+        <div className="engagement-grid">{engagementModels.map((model) => (
+          <article className="engagement-card" key={model.name}>
+            <h3>{model.name}</h3>
+            <p>{model.purpose}</p>
+          </article>
+        ))}</div>
+        <a className="text-link" href="/approach#engagements">See engagement details <Arrow /></a>
       </section>
       <NextStep />
     </>
@@ -424,7 +485,7 @@ export function PublicSite({ adminConfigured }: { adminConfigured: boolean }) {
   return (
     <div className="public-site">
       <a className="skip" href="#main">Skip to content</a>
-      <div className="preview-notice"><span>{publicCopy(brand.philosophy, "Development preview · Provisional brand")}</span><a href="/contact">Intake closed <span aria-hidden="true">↗</span></a></div>
+      <div className="preview-notice"><span>{publicCopy(brand.philosophy, "Development preview · Provisional brand")}</span><a href="/contact">Inquiries are not open yet <span aria-hidden="true">↗</span></a></div>
       <header className="site-header">
         <a className="brand-lockup" href="/" aria-label={`${brand.name} home`}>
           <span className="brand-symbol" aria-hidden="true">III<span>↗</span></span>
