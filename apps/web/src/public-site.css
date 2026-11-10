@@ -77,6 +77,7 @@
 .public-site .home-hero h1 em { font-weight: 500; color: var(--gold); font-family: Georgia, serif; }
 .public-site .hero-philosophy { font-size: 1.2rem; font-weight: 650; letter-spacing: -.02em; }
 .public-site .hero-description { max-width: 40rem; color: #d1d9cf; font-size: 1.05rem; }
+.public-site .hero-supporting { margin: 1rem 0 0; color: #d1d9cf; font-family: Georgia, serif; font-size: 1rem; font-style: italic; }
 .public-site .hero-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 1.5rem; margin-top: 2rem; }
 .public-site .button { display: inline-flex; align-items: center; justify-content: space-between; gap: 1.5rem; background: var(--ink); color: var(--paper); border: 1px solid var(--ink); padding: .95rem 1.2rem; margin: 0; font-size: .85rem; font-weight: 650; text-decoration: none; }
 .public-site .home-hero .button { background: var(--gold); border-color: var(--gold); color: var(--ink); }
@@ -110,6 +111,26 @@
 .public-site .enterprise-card { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 .public-site .enterprise-card .card-index { color: var(--gold); }
 .public-site .enterprise-card a:focus-visible { outline-color: var(--gold); }
+.public-site .problem-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.2rem; }
+.public-site .problem-card { display: flex; flex-direction: column; min-height: 18rem; padding: 1.6rem; border: 1px solid var(--line); border-top: 3px solid var(--accent); background: #fffefa; }
+.public-site .problem-card h3 { margin: 1.7rem 0 .8rem; font-size: clamp(1.25rem, 1.8vw, 1.65rem); }
+.public-site .problem-card > p { color: var(--muted); }
+.public-site .problem-card .text-link { margin-top: auto; justify-content: space-between; }
+.public-site .scenario-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; }
+.public-site .scenario-card { padding: 1.8rem; border: 1px solid var(--line); background: var(--paper); }
+.public-site .scenario-card h3 { margin-bottom: 1.5rem; font-size: 1.35rem; }
+.public-site .scenario-card dl { display: grid; gap: 1rem; margin: 0; }
+.public-site .scenario-card dl > div { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); gap: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.public-site .scenario-card dt { color: var(--accent); font-size: .72rem; font-weight: 750; text-transform: uppercase; letter-spacing: .05em; }
+.public-site .scenario-card dd { margin: 0; color: var(--muted); font-size: .88rem; }
+.public-site .decision-section { color: var(--paper); background: var(--ink); }
+.public-site .decision-section .section-heading > p:last-child:not(.eyebrow) { color: #d1d9cf; }
+.public-site .decision-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.5rem; }
+.public-site .decision-card { padding-top: 1.2rem; border-top: 1px solid #536560; }
+.public-site .decision-card h3 { color: var(--gold); }
+.public-site .decision-card p { color: #d1d9cf; font-size: .9rem; }
+.public-site .decision-note { margin: 2rem 0 0; padding: 1.2rem; color: #d1d9cf; background: #203b39; font-size: .88rem; }
+.public-site .decision-note a { color: var(--gold); font-weight: 650; }
 .public-site .service-tile { padding: 2rem 0; border-top: 1px solid #aeb8ac; }
 .public-site .service-tile h3 { margin-bottom: 1rem; font-size: 1.5rem; }
 .public-site .service-tile h3 a { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; text-decoration: none; }
@@ -198,7 +219,7 @@
   .public-site .home-hero h1 { font-size: clamp(2.8rem, 9.5vw, 4.5rem); }
   .public-site .game-plan { display: none; }
   .public-site .principle-strip { justify-content: flex-start; gap: .5rem 1.5rem; }
-  .public-site .audience-grid, .public-site .service-grid, .public-site .stage-grid, .public-site .engagement-grid, .public-site .deliverables, .public-site .split-section, .public-site .process-row { grid-template-columns: 1fr; }
+  .public-site .audience-grid, .public-site .service-grid, .public-site .problem-grid, .public-site .scenario-grid, .public-site .decision-grid, .public-site .stage-grid, .public-site .engagement-grid, .public-site .deliverables, .public-site .split-section, .public-site .process-row { grid-template-columns: 1fr; }
   .public-site .service-grid { gap: 0; }
   .public-site .stage-grid { gap: .5rem; }
   .public-site .engagement-grid { gap: 2.5rem; }

@@ -124,6 +124,28 @@ test("mobile menu is a disclosure with a real controlled navigation element", ()
   expect(toggle.getAttribute("aria-expanded")).toBe("false");
 });
 
+test("homepage leads with business outcomes, problem paths, balanced decisions, and closed-intake destinations", () => {
+  render(<App />);
+
+  expect(screen.getByRole("heading", { level: 1, name: "Technology that earns its place in your business." })).toBeDefined();
+  expect(screen.getAllByText(brand.philosophy).length).toBeGreaterThan(0);
+  expect(screen.getByRole("link", { name: "Explore solutions" }).getAttribute("href")).toBe("/services");
+  expect(screen.getByRole("link", { name: "See how we work" }).getAttribute("href")).toBe("/approach");
+  expect(screen.getByRole("heading", { name: "Recognize the problem. Find the right move." })).toBeDefined();
+  expect(screen.getByRole("heading", { name: "Your business is growing. Your tools aren't keeping up." })).toBeDefined();
+  expect(screen.getByRole("heading", { name: "You have an idea. Should you buy, connect, or build?" })).toBeDefined();
+  expect(screen.getByRole("heading", { name: "Your systems are harder and more expensive to change." })).toBeDefined();
+  expect(screen.getByRole("heading", { name: "Not everything needs to be custom-built." })).toBeDefined();
+  for (const option of ["Buy", "Connect", "Improve", "Build"]) {
+    expect(screen.getByRole("heading", { name: option, level: 3 })).toBeDefined();
+  }
+  expect(screen.getByText(/Illustrative scenarios — not client case studies/)).toBeDefined();
+  expect(screen.getByText(/total cost, maintenance ownership, data portability/)).toBeDefined();
+  expect(screen.getByRole("link", { name: "Prepare for discovery" }).getAttribute("href")).toBe("/contact");
+  expect(screen.getAllByText(/Inquiries are not open yet/).length).toBeGreaterThan(0);
+  expect(screen.queryByRole("link", { name: /Digital Foundations/ })).toBeNull();
+});
+
 test("discovery preparation is useful without opening collection or inventing contact details", () => {
   window.history.replaceState(null, "", "/contact");
   render(<App />);
