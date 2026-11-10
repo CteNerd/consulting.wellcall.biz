@@ -36,13 +36,13 @@ const config = presentation({ ...loadEnv("production", process.cwd(), "VITE_"), 
 const html = await readFile(join(outputDirectory, "index.html"), "utf8");
 if (config.origin) {
   for (const tag of [
-    `<meta property="og:image" content="${config.origin}/assets/social-card-4cfaaa052494.jpg" />`,
-    `<meta name="twitter:image" content="${config.origin}/assets/social-card-4cfaaa052494.jpg" />`,
+    `<meta property="og:image" content="${config.origin}/assets/third-down-social-8e2cf34fa2ac.jpg" />`,
+    `<meta name="twitter:image" content="${config.origin}/assets/third-down-social-8e2cf34fa2ac.jpg" />`,
     '<meta name="twitter:card" content="summary_large_image" />',
     '<meta property="og:image:width" content="1200" />',
     '<meta property="og:image:height" content="630" />',
   ]) assert.ok(html.includes(tag), `Production social metadata missing: ${tag}`);
-  const image = await readFile(join(outputDirectory, "assets/social-card-4cfaaa052494.jpg"));
+  const image = await readFile(join(outputDirectory, "assets/third-down-social-8e2cf34fa2ac.jpg"));
   assert.equal(image.readUInt16BE(0), 0xffd8, "Social preview must be a published JPEG");
 } else {
   assert.ok(!html.includes("og:image") && !html.includes("twitter:image"), "Preview must not publish production social metadata");
