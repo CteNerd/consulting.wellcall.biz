@@ -231,6 +231,7 @@ test("development web publisher has exact OIDC trust and a matching artifact-onl
   });
   assert.match(policies, /s3:PutObject/);
   assert.match(policies, /assets\/\*|index\.html/);
+  assert.match(policies, /route-meta\/\*/);
   assert.match(policies, /cloudfront:CreateInvalidation/);
   assert.match(policies, /cloudformation:DescribeStacks/);
   assert.doesNotMatch(policies, /DeleteObject|PutBucket|UpdateDistribution|CreateStack|ExecuteChangeSet|iam:|dynamodb:|"Resource":"\*"/);

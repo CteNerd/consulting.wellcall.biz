@@ -3,10 +3,9 @@
 The modern public frontend is `apps/web`, not the historical CRA `src` tree.
 The default remains a development preview. Public publication of Third Down
 Technologies / Third Down Tech is approved separately from opening intake or
-access; production presentation does not assert legal clearance or outcomes.
-This source change is not an authorization for the agent to change hosting/DNS.
-The current portfolio implementation plan supersedes the older `master` and
-`staging` assumptions; this work changes neither branches nor environments.
+access; production presentation does not assert legal clearance or quantified
+outcomes. `main` is the default branch and the legacy remote `master` branch has
+been retired. This source change is not an authorization to change hosting/DNS.
 
 ## Information architecture
 
@@ -15,6 +14,7 @@ The current portfolio implementation plan supersedes the older `master` and
 | `/` | Brand framework, audience choices and service overview |
 | `/small-business` | Practical foundations, ownership and workflow improvements |
 | `/enterprise` | Architecture, integrations, delivery and team collaboration |
+| `/work` | Status-labeled client work and a separate founder experiment |
 | `/services` | Five service areas and appropriate-fit technology decisions |
 | `/services/digital-foundations` | Websites, business tools and account handover |
 | `/services/engineering-solutions` | Software, APIs, integrations and modernization |
@@ -22,49 +22,50 @@ The current portfolio implementation plan supersedes the older `master` and
 | `/services/ai-automation` | Workflow evaluation, approved data, human review and fallbacks |
 | `/services/cloud-cost-optimization` | Cost assessment, reliability trade-offs and verification |
 | `/approach` | Rethink / Create / Transform; owner-directed software, discovery, projects and retainers |
-| `/about` | Brand philosophy and working principles, without unverified biography |
+| `/about` | Founder background and working principles, without employer-project claims |
 | `/faq` | Scope, technology, commercial boundaries and readiness questions |
-| `/contact` | Discovery preparation and the existing gated lead UI |
+| `/contact` | Accurate closed-intake status and private discovery preparation |
 
 These are native internal links, with full document navigation and browser
 history, not a new router dependency. Vite supports direct requests locally.
-The existing approach page includes an owner-directed software (“selfware”)
-example: a plain-language request, a reviewed bounded change, and separate
-scoping when integrations, access or ongoing ownership are involved. It
-compares buy/configure/build trade-offs without promising savings or implying
-that owners make unsupervised production changes. For regulated needs, applicable
-requirements, authorized access, audit evidence, vendor agreements and
-independent review must be established; AI is not compliance.
+The approach page describes three Rethink / Create / Transform stages, discovery,
+fixed-scope and ongoing engagement models, and owner-directed changes. Changes
+remain reviewed, tested and handed over; integrations and regulated work require
+separate scoping, approved data and access, and explicit ownership.
 
-The footer's **Team workspace** link opens `/?workspace`, a root query entry
-for authenticated internal use. It is not a new public path or enrollment flow.
+The authenticated `/?workspace` route remains available to invited users but
+has no public navigation link. It is not an enrollment flow.
 
 ## Hosted deep-link handling
 
 The source-only infrastructure change in `infra/src/web-routing.ts` associates
 a CloudFront viewer-request rewrite with the web distribution. It rewrites only
-the 13 approved public paths, with optional trailing slashes, for `GET` and
-`HEAD` requests to `index.html` while preserving query parameters. Unknown
-paths and asset requests are left to the origin so real missing-resource errors
-are not hidden. Local Vite navigation renders the frontend recovery page for an
+the 14 approved public paths, with optional trailing slashes, for `GET` and
+`HEAD` requests to a route-specific static HTML shell while preserving query
+parameters: `/` maps to `index.html`, and the other routes map to
+`route-meta/*.html`. Each shell loads the same SPA bundles and carries unique
+title, description, canonical, Open Graph and Twitter metadata. Unknown paths
+and asset requests are left to the origin so real missing-resource errors are
+not hidden. Local Vite navigation renders the frontend recovery page for an
 unknown path; a hosted unknown path remains an origin missing-resource response
 instead of being rewritten to the SPA.
 
-This edge change has **not** been deployed. A reviewed infrastructure migration
-is required before hosted deep-link navigation or refresh works; publishing web
-assets alone does not install the rewrite. Local Vite deep links work without
-that migration. Existing development hostname aliases and ACM certificate
-settings are unchanged; this work does not change DNS, distribution aliases or
+This edge change has **not** been deployed. The generated static shells must be
+published before the reviewed infrastructure migration switches the rewrite to
+them; the promotion workflow stages and verifies the shells and reports whether
+the mapping is active. Until both steps are complete, hosted routes may continue
+to serve the shared SPA entry point. Local Vite deep links work without that
+migration. Existing development hostname aliases and ACM certificate settings
+are unchanged; this work does not change DNS, distribution aliases or
 certificates.
 
 ## Preserved boundaries
 
 - Public intake remains **closed in the unconfigured preview**. No live calendar,
   invented mailbox, phone, contact destination or payment flow was added.
-- `LeadForm` and its existing API URL, explicit enable flag and approved consent
-  gates are unchanged. The form now lives on `/contact`; unit tests cover both
-  its closed state and existing enabled submission behavior. This work does not
-  enable intake or supply production settings.
+- The `LeadForm` component and its API URL, explicit enable flag and consent
+  gates remain in source and have independent tests, but `/contact` does not
+  render a form. No intake configuration was enabled or supplied.
 - `?admin` and OAuth callback query parameters continue to render the existing
   admin inbox. Its implementation, authorization settings and tests are unchanged.
 - The `/?workspace` entry reuses
@@ -84,16 +85,19 @@ certificates.
   Production requires explicit `VITE_PUBLIC_PRESENTATION=production`, not
   Vite's normal production-build flag. It removes preview/provisional language
   and the HTML noindex guard. Optional `VITE_PUBLIC_ORIGIN` must be exactly
-  `https://thirddowntech.com`; it adds a canonical URL and updates it per route,
-  never from the browser's potentially-dev origin. Dev CloudFront response
+  `https://thirddowntech.com`; it adds static route-specific canonical and social
+  metadata, never derived from the browser's potentially-dev origin. Runtime
+  metadata stays synchronized for browser navigation. Dev CloudFront response
   headers keep staged production candidates noindex independently of HTML.
   No structured legal identity, social profile,
   tracking code or speculative social image was added.
-- Service deliverables are illustrative and scoped through discovery. There
-  are no customer claims, testimonials, savings percentages, credentials,
-  guarantees, pricing, payment terms or new legal policies.
-- No historical contract, payment page, contact recipient or portfolio claim
-  was migrated. The legacy CRA source remains untouched. Its old lifecycle maps
+- Service deliverables remain illustrative and scoped through discovery.
+  `/work` contains owner-approved project descriptions with current status and
+  public source-repository evidence. It includes no customer quotes, private
+  screenshots, patient data, employer-project attribution, invented metrics,
+  savings percentages, guarantees, pricing or new legal policies.
+- No historical contract, payment page or contact recipient was migrated. The
+  legacy CRA source remains untouched. Its old lifecycle maps
   conceptually to Rethink (Consult), Create (Implement), and Transform (Adopt,
   Maintain, Enhance), not to unreviewed route redirects or commercial promises.
 - This frontend adds no backend routes, root dependency or lockfile changes.

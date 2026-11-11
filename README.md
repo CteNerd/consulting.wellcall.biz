@@ -2,7 +2,7 @@
 
 This private repository is moving toward Third Down Technologies (provisional
 display brand). See the [domain and release ADR](docs/adr/0001-domain-and-release-boundaries.md).
-The approved default-branch migration is `master` to `main`.
+`main` is the default branch; the retired remote `master` branch was the legacy CRA snapshot.
 
 The foundation adds pinned reporting contracts, a typed React preview, API and
 authorization-policy tests, and offline CDK stacks. The legacy site is preserved;

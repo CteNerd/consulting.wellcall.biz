@@ -7,7 +7,7 @@
     "dev": "vite --host 127.0.0.1",
     "dev:uat": "VITE_ENABLE_UAT_REHEARSAL=1 vite --host 127.0.0.1 --port 5186 --strictPort",
     "check": "tsc --noEmit && vitest run",
-    "build": "vite build && node scripts/verify-production-artifact.mjs"
+    "build": "vite build && node scripts/generate-route-html.mjs && node scripts/verify-production-artifact.mjs"
   },
   "dependencies": {
     "react": "19.3.1",

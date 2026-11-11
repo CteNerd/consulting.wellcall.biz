@@ -5,15 +5,20 @@ import { join, resolve } from "node:path";
 import { test } from "node:test";
 import { createCandidate } from "./web-candidate.ts";
 import { developmentCertificateArn } from "./config.ts";
+import { publicPaths, publicRouteHtmlPath } from "./web-routing.ts";
 
 test("offline promotion verifies both targets and fails before writes for tampering or unprotected dev", (t) => {
   const root = resolve(import.meta.dirname, `../.promotion-test-${process.pid}`);
   const repository = resolve(import.meta.dirname, "../..");
   mkdirSync(join(root, "bin"), { recursive: true });
   mkdirSync(join(root, "candidate/assets"), { recursive: true });
+  mkdirSync(join(root, "candidate/route-meta"), { recursive: true });
   symlinkSync(join(repository, "infra"), join(root, "infra"));
   t.after(() => rmSync(root, { recursive: true }));
   writeFileSync(join(root, "candidate/index.html"), "<html>Public brand; intake closed.</html>");
+  for (const path of publicPaths.filter((item) => item !== "/")) {
+    writeFileSync(join(root, "candidate", publicRouteHtmlPath(path)), `<html>${path}</html>`);
+  }
   writeFileSync(join(root, "candidate/assets/index-hash.js"), "closed");
   const sourceSha = "a".repeat(40);
   const hash = createCandidate(join(root, "candidate"), sourceSha, "123");
@@ -66,12 +71,35 @@ if (headers !== -1) fs.writeFileSync(args[headers + 1],
   process.env.RELEASE_ENVIRONMENT === "development" && !process.env.OMIT_NOINDEX
     ? "x-robots-tag: noindex, nofollow\\n" : "content-type: text/html\\n");
 if (args.includes("--write-out")) {
-  process.stdout.write(url.pathname === "/leads" ? "503"
-    : url.hostname.includes("execute-api") ? "401" : "404");
+  let status = "404";
+  let routeFile;
+  if (url.hostname.includes("execute-api")) status = url.pathname === "/leads" ? "503" : "401";
+  else if (process.env.ROUTE_METADATA_INACTIVE && url.pathname === "/work") status = "403";
+  else {
+    const routePath = url.pathname.replace(/\\/$/, "") || "/";
+    const approvedPaths = new Set(${JSON.stringify(publicPaths)});
+    routeFile = routePath === "/" ? "index.html"
+      : routePath.startsWith("/assets/") || routePath.startsWith("/route-meta/")
+        ? routePath.slice(1)
+        : process.env.ROUTE_METADATA_INACTIVE && approvedPaths.has(routePath) ? "index.html"
+          : "route-meta/" + routePath.slice(1).replace(/\\//g, "--") + ".html";
+    if (fs.existsSync("candidate/" + routeFile)) status = "200";
+  }
+  const output = args.indexOf("--output");
+  if (status === "200" && output !== -1 && args[output + 1] !== "/dev/null") {
+    const data = fs.readFileSync("candidate/" + routeFile);
+    fs.writeFileSync(args[output + 1], process.env.CORRUPT_PUBLISHED ? "wrong bytes" : data);
+  }
+  process.stdout.write(status);
 } else if (url.pathname === "/health") {
   process.stdout.write(JSON.stringify({ status: "ok", application: "consulting" }));
 } else {
-  const data = fs.readFileSync(url.pathname.startsWith("/assets/") ? "candidate" + url.pathname : "candidate/index.html");
+  const routePath = url.pathname.replace(/\\/$/, "") || "/";
+  const routeFile = routePath === "/" ? "index.html"
+    : routePath.startsWith("/assets/") || routePath.startsWith("/route-meta/")
+      ? routePath.slice(1)
+      : "route-meta/" + routePath.slice(1).replace(/\\//g, "--") + ".html";
+  const data = fs.readFileSync("candidate/" + routeFile);
   if (!args.includes("--output")) process.stdout.write(process.env.CORRUPT_PUBLISHED ? "wrong bytes" : data);
 }
 `, { mode: 0o755 });
@@ -96,10 +124,15 @@ if (args.includes("--write-out")) {
     const calls = readFileSync(join(root, "aws.log"), "utf8");
     assert.match(calls, /s3 sync candidate/);
     assert.match(calls, /s3 cp candidate\/index.html/);
+    assert.match(calls, /s3 cp candidate\/route-meta\/work\.html/);
+    assert.match(calls, /s3 sync s3:\/\/consulting-test-bucket\/route-meta\//);
     assert.doesNotMatch(calls, /--delete|delete-object|assume-role|deploy/);
     assert.equal(readFileSync(join(root, ".release/previous-index.html"), "utf8"), "previous release");
     assert.equal(JSON.parse(readFileSync(join(root, ".release/promotion.json"), "utf8")).manifestSha256, hash);
   }
+  const staged = run("production", { ROUTE_METADATA_INACTIVE: "1" });
+  assert.equal(staged.status, 0, staged.stderr);
+  assert.match(readFileSync(join(root, "summary"), "utf8"), /shells staged and verified/);
   for (const extra of [{ FAIL_INVALIDATION_WAIT: "1" }, { CORRUPT_PUBLISHED: "1" }]) {
     const failed = run("production", extra);
     assert.notEqual(failed.status, 0);

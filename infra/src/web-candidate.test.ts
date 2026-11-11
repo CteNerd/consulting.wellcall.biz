@@ -3,12 +3,17 @@ import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { createCandidate, verifyCandidate } from "./web-candidate.ts";
+import { publicPaths, publicRouteHtmlPath } from "./web-routing.ts";
 
 test("candidate binds exact bytes, file inventory, reviewed SHA and release run", (t) => {
   const directory = join(import.meta.dirname, `../.candidate-test-${process.pid}`);
   mkdirSync(join(directory, "assets"), { recursive: true });
+  mkdirSync(join(directory, "route-meta"));
   t.after(() => rmSync(directory, { recursive: true }));
   writeFileSync(join(directory, "index.html"), "<html>Intake closed</html>");
+  for (const path of publicPaths.filter((item) => item !== "/")) {
+    writeFileSync(join(directory, publicRouteHtmlPath(path)), `<html>${path}</html>`);
+  }
   writeFileSync(join(directory, "assets/index-hash.js"), "closed");
   const imagePath = join(directory, "assets/social-card-hash.jpg");
   const image = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
@@ -30,4 +35,7 @@ test("candidate binds exact bytes, file inventory, reviewed SHA and release run"
   rmSync(join(directory, "assets/extra.js"));
   symlinkSync("../index.html", join(directory, "assets/link.js"));
   assert.throws(() => verifyCandidate(directory, hash, sha, "123"), /Unexpected candidate path/);
+  rmSync(join(directory, "assets/link.js"));
+  rmSync(join(directory, publicRouteHtmlPath("/work")));
+  assert.throws(() => createCandidate(directory, sha, "124"), /route metadata is incomplete/);
 });

@@ -24,9 +24,10 @@ Missing or invalid target context fails. `us-east-1` is explicit.
   DynamoDB TTL only after an explicit retention value is provided.
 - Private S3 with CloudFront OAC, HTTPS redirection and security headers.
   Assets are not uploaded by synth. No broad SPA error fallback is configured.
-  A source-only viewer-request CloudFront Function rewrites GET/HEAD requests
-  for the 13 approved public pages (including a trailing slash) to `index.html`.
-  Query parameters are preserved. Unknown URLs and missing assets retain their
+  a source-only viewer-request CloudFront Function rewrites GET/HEAD requests
+  for the 14 approved public pages (including `/work` and a trailing slash) to
+  the matching static metadata shell (`index.html` for `/`, `route-meta/*.html`
+  otherwise). Query parameters are preserved. Unknown URLs and missing assets retain their
   origin errors; API/internal paths are not added as public pages. New public
   routes must update this exact allowlist alongside the frontend. The currently
   deployed distribution has no such rewrite: a web-only publish cannot enable
@@ -249,7 +250,7 @@ Infrastructure deployment automation remains outstanding.
 Development source defines an OIDC web publisher whose identity policy and
 permissions boundary are the same narrowly scoped managed policy: bucket
 listing/location and public-access-block/policy-status reads, GetObject/PutObject
-for `assets/*` and `index.html`, invalidation
+for `assets/*`, `index.html` and `route-meta/*`, invalidation
 and status reads for its own CloudFront distribution, and DescribeStacks for
 its own stack. It cannot delete objects, deploy infrastructure, edit identities,
 mutate business data or use production resources. Trust is exact repository,
@@ -272,8 +273,8 @@ After merge and bootstrap, manually run the workflow on `main`. It runs modern
 checks and the high-severity audit, validates stack/account/role/closed intake,
 requires all four S3 public-access blocks and an explicitly non-public bucket
 policy, verifies the OAC origin and anonymous API denial, builds the gated web
-app, uploads hashed assets before `index.html`, waits for invalidation, then
-compares the live entry point and every emitted asset byte-for-byte with the build. It prints the actual
+app, uploads hashed assets and all HTML shells, waits for invalidation, then
+compares route HTML and every emitted asset byte-for-byte with the build. It prints the actual
 preview URL only after success. The build explicitly keeps public intake closed.
 The publisher is independently implemented in each repository to preserve
 separate ownership and release boundaries; no cross-repo runtime dependency is added.
@@ -310,8 +311,11 @@ full reviewed `main` SHA as `reviewed_sha`; it must match the dispatch SHA.
 The candidate job installs only modern workspaces on Node 24/npm 11.6.2,
 runs checks once, builds once with explicit production presentation, and
 leaves all intake/consent/API/auth settings disabled or empty.
-The immutable artifact contains only `index.html`, hashed JS/CSS assets and a
-SHA-256 inventory manifest bound to repository, reviewed SHA and run ID.
+The immutable artifact contains `index.html`, one generated `route-meta/*.html`
+shell per public route, hashed JS/CSS assets and a SHA-256 inventory manifest
+bound to repository, reviewed SHA and run ID. Each shell shares the SPA bundles
+but supplies route-specific title, description, canonical URL, Open Graph and
+Twitter metadata to crawlers that do not execute JavaScript.
 Its exact artifact ID and manifest digest pass to both protected jobs.
 Both verify every byte, inventory and provenance before OIDC; neither rebuilds.
 
@@ -319,8 +323,10 @@ The `development` job uses only the dev publisher and verifies account, stack,
 private bucket/OAC, alias/certificate, API health, anonymous 401s, disabled intake,
 HTML/deep links, every emitted asset and missing-path errors. It requires the
 dev `X-Robots-Tag: noindex, nofollow` header **before** writing public-candidate
-bytes. Infrastructure must install that header and the exact-route function
-first. `production` depends on the successful stage and uses only its own
+bytes. Infrastructure must install that header first. The web publisher stages
+and verifies all route shells before the exact-route function is switched from
+the SPA entry point to those shells; its summary reports whether the mapping is
+active. `production` depends on the successful stage and uses only its own
 protected-environment publisher with the same scoped policy/boundary.
 The production origin must be exactly `https://thirddowntech.com`.
 No broad SPA fallback, delete sync, identity/data writes or cross-env role
@@ -527,8 +533,8 @@ SHA, run/attempt, manifest digest, distribution and invalidation IDs. Each
 record is persisted before S3 publication and updated immediately when an
 invalidation ID is available; an exit trap preserves failed-check state and
 exit status rather than losing the attempted release's provenance. Each
-environment artifact also captures the previous `index.html` when present,
-including on a later verification failure. Old hashed assets remain in S3.
+environment artifact also captures the previous `index.html` and route shells
+when present, including on a later verification failure. Old hashed assets remain in S3.
 Download/archive approved artifacts before expiry if longer recovery is needed.
 
 For exact-byte rollback while the original candidate artifact remains retained,

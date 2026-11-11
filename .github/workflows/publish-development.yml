@@ -82,7 +82,10 @@ jobs:
           set -euo pipefail
           test -s apps/web/dist/index.html
           aws s3 sync apps/web/dist/ "s3://$PREVIEW_BUCKET/" --exclude "*" --include "assets/*" --cache-control "public,max-age=31536000,immutable" --only-show-errors
-          aws s3 cp apps/web/dist/index.html "s3://$PREVIEW_BUCKET/index.html" --content-type "text/html" --cache-control "no-cache" --only-show-errors
+          for html in apps/web/dist/index.html apps/web/dist/route-meta/*.html; do
+            key=$(printf '%s' "$html" | sed 's#^apps/web/dist/##')
+            aws s3 cp "$html" "s3://$PREVIEW_BUCKET/$key" --content-type "text/html" --cache-control "no-cache" --only-show-errors
+          done
           invalidation=$(aws cloudfront create-invalidation --distribution-id "$PREVIEW_DISTRIBUTION_ID" --paths "/*" --query Invalidation.Id --output text)
           aws cloudfront wait invalidation-completed --distribution-id "$PREVIEW_DISTRIBUTION_ID" --id "$invalidation"
       - name: Verify the published entry point
@@ -91,6 +94,28 @@ jobs:
           set -euo pipefail
           curl --fail --retry 5 --retry-all-errors --max-time 30 --silent --show-error "$PREVIEW_WEB_URL/" > "$RUNNER_TEMP/published-preview.html"
           cmp apps/web/dist/index.html "$RUNNER_TEMP/published-preview.html"
+          for html in apps/web/dist/route-meta/*.html; do
+            key=$(printf '%s' "$html" | sed 's#^apps/web/dist/##')
+            curl --fail --retry 3 --retry-all-errors --max-time 30 --silent --show-error "$PREVIEW_WEB_URL/$key" > "$RUNNER_TEMP/published-route.html"
+            cmp "$html" "$RUNNER_TEMP/published-route.html"
+          done
+          route_metadata_active=true
+          for route in /small-business /enterprise /work /services /approach /about /faq /contact \
+            /services/digital-foundations /services/engineering-solutions /services/fractional-leadership \
+            /services/ai-automation /services/cloud-cost-optimization; do
+            route_file=$(printf '%s' "$route" | sed 's#^/##; s#/#--#g')
+            status=$(curl --retry 3 --retry-all-errors --max-time 30 --silent --show-error \
+              --output "$RUNNER_TEMP/published-route.html" --write-out "%{http_code}" "$PREVIEW_WEB_URL$route")
+            if test "$route" = "/work" && { test "$status" = "403" || test "$status" = "404"; }; then
+              route_metadata_active=false
+              continue
+            fi
+            test "$status" = "200"
+            if ! cmp "apps/web/dist/route-meta/$route_file.html" "$RUNNER_TEMP/published-route.html"; then
+              cmp apps/web/dist/index.html "$RUNNER_TEMP/published-route.html"
+              route_metadata_active=false
+            fi
+          done
           for asset in apps/web/dist/assets/*; do
             test -f "$asset"
             name=$(basename "$asset")
@@ -98,3 +123,8 @@ jobs:
             cmp "$asset" "$RUNNER_TEMP/published-asset"
           done
           printf 'Development preview: %s\n\nPublic inquiry collection remains disabled.\n' "$PREVIEW_WEB_URL" >> "$GITHUB_STEP_SUMMARY"
+          if test "$route_metadata_active" = true; then
+            printf 'Static route metadata is active for approved page URLs.\n' >> "$GITHUB_STEP_SUMMARY"
+          else
+            printf 'Route metadata shells are staged and verified; deploy the infrastructure route mapping to activate them.\n' >> "$GITHUB_STEP_SUMMARY"
+          fi

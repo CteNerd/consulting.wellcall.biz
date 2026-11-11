@@ -127,6 +127,7 @@ jobs:
             .release/manifest.json
             .release/promotion.json
             .release/previous-index.html
+            .release/previous-route-meta/
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 90
@@ -184,6 +185,7 @@ jobs:
             .release/manifest.json
             .release/promotion.json
             .release/previous-index.html
+            .release/previous-route-meta/
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 90

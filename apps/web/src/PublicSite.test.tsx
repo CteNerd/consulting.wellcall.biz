@@ -13,7 +13,7 @@ afterEach(() => {
   window.history.replaceState(null, "", "/");
 });
 
-test.each(publicRoutes)("explicit production presentation at %s publishes the brand, not intake", (path) => {
+test.each(publicRoutes)("explicit production presentation at %s publishes the brand without opening intake", (path) => {
   vi.stubEnv("VITE_PUBLIC_PRESENTATION", "production");
   vi.stubEnv("VITE_PUBLIC_ORIGIN", "https://thirddowntech.com");
   window.history.replaceState(null, "", path);
@@ -21,24 +21,48 @@ test.each(publicRoutes)("explicit production presentation at %s publishes the br
   expect(document.title).toContain(brand.name);
   expect(document.title).not.toMatch(/preview|provisional/i);
   expect(document.body.textContent).not.toMatch(/preview|provisional|launch remains subject/i);
-  expect(document.body.textContent).toMatch(/intake.*closed/i);
+  const description = document.querySelector<HTMLMetaElement>('meta[name="description"]')?.content;
+  expect(description).toBeTruthy();
+  expect(description).not.toContain("Development preview");
+  expect(document.querySelector<HTMLMetaElement>('meta[property="og:title"]')?.content).toBe(document.title);
+  expect(document.querySelector<HTMLMetaElement>('meta[property="og:description"]')?.content).toBe(description);
+  expect(document.querySelector<HTMLMetaElement>('meta[property="og:url"]')?.content).toBe(`https://thirddowntech.com${path}`);
+  expect(document.querySelector<HTMLMetaElement>('meta[name="twitter:description"]')?.content).toBe(description);
   expect(document.querySelector("form, input, textarea")).toBeNull();
+  if (path === "/contact") {
+    expect(document.body.textContent).toContain("Public inquiries and discovery booking are closed.");
+  }
   expect(document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.href)
     .toBe(`https://thirddowntech.com${path}`);
   expect(screen.queryByRole("link", { name: "Admin inbox" })).toBeNull();
-  for (const link of screen.getAllByRole("link", { name: "281-692-7522" })) {
-    expect(link.getAttribute("href")).toBe("tel:+12816927522");
-  }
+  expect(screen.queryByRole("link", { name: "Team workspace" })).toBeNull();
+  expect(document.querySelector('a[href^="tel:"]')).toBeNull();
+});
+
+test("each public route exposes a distinct page description", () => {
+  vi.stubEnv("VITE_PUBLIC_PRESENTATION", "production");
+  vi.stubEnv("VITE_PUBLIC_ORIGIN", "https://thirddowntech.com");
+  const descriptions = publicRoutes.map((path) => {
+    window.history.replaceState(null, "", path);
+    const view = render(<App />);
+    const description = document.querySelector<HTMLMetaElement>('meta[name="description"]')?.content;
+    view.unmount();
+    return description;
+  });
+  expect(descriptions.every(Boolean)).toBe(true);
+  expect(new Set(descriptions).size).toBe(publicRoutes.length);
 });
 
 test("public SEO requires explicit presentation, never just a production build, and a safe origin", () => {
-  const html = '<head>\n    <meta name="robots" content="noindex, nofollow" />\n<title>Third Down Technologies | Development preview</title></head>';
+  const html = '<head>\n    <meta name="robots" content="noindex, nofollow" />\n    <meta name="description" content="Development preview: technology consulting for growing businesses and engineering teams. Decide what to buy, connect, improve or build." />\n<title>Third Down Technologies | Development preview</title></head>';
   expect(presentation({ PROD: true }).publicBrand).toBe(false);
   expect(presentationHtml(html, { PROD: true })).toBe(html);
   const env = { VITE_PUBLIC_PRESENTATION: "production", VITE_PUBLIC_ORIGIN: "https://thirddowntech.com" };
   expect(presentationHtml(html, env)).not.toMatch(/noindex|preview/i);
   expect(presentationHtml(html, env)).toContain('href="https://thirddowntech.com/"');
   const metadata = new DOMParser().parseFromString(presentationHtml(html, env), "text/html");
+  expect(metadata.querySelector('meta[name="description"]')?.getAttribute("content"))
+    .toBe("Technology consulting for growing businesses and engineering teams. Decide what to buy, connect, improve or build.");
   expect(metadata.querySelector('meta[property="og:image"]')?.getAttribute("content"))
     .toBe("https://thirddowntech.com/assets/third-down-social-8e2cf34fa2ac.jpg");
   expect(metadata.querySelector('meta[name="twitter:image"]')?.getAttribute("content"))
@@ -82,8 +106,17 @@ test.each(publicRoutes)("public route %s has a coherent, connected and closed pr
       expect(document.getElementById(href.slice(1)), `broken fragment ${href} on ${path}`).not.toBeNull();
     } else {
       const url = new URL(href, window.location.origin);
-      expect(publicRoutes, `unrecognized public destination ${href} on ${path}`).toContain(url.pathname);
-      expect(url.origin).toBe(window.location.origin);
+      if (url.origin === window.location.origin) {
+        expect(publicRoutes, `unrecognized public destination ${href} on ${path}`).toContain(url.pathname);
+        if (url.pathname === path && url.hash) {
+          expect(document.getElementById(url.hash.slice(1)), `broken fragment ${href} on ${path}`).not.toBeNull();
+        }
+      } else {
+        expect(url.origin).toBe("https://github.com");
+        expect(url.pathname).toMatch(/^\/CteNerd\/(r3counseling|sugarsocietysc|the-lab|candy-map)$/);
+        expect(link.getAttribute("target")).toBe("_blank");
+        expect(link.getAttribute("rel")).toBe("noopener noreferrer");
+      }
     }
   }
 });
@@ -99,16 +132,18 @@ test.each(services)("service $name explains fit, deliverables and evaluation", (
   expect(screen.getByRole("navigation", { name: "On this service page" })).toBeDefined();
 });
 
-test("small-business and enterprise paths provide different practical starting points", () => {
+test("small-business and enterprise pages speak to distinct audiences without repeating the service directory", () => {
   window.history.replaceState(null, "", "/small-business");
   const view = render(<App />);
-  expect(screen.getByRole("heading", { name: "Digital Foundations", level: 3 })).toBeDefined();
-  expect(screen.queryByRole("heading", { name: "Engineering Solutions", level: 3 })).toBeNull();
+  expect(screen.getByRole("heading", { name: "A website should help customers—and make the business easier to run." })).toBeDefined();
+  expect(screen.getByRole("heading", { name: "People cannot quickly find you or take the next step.", level: 3 })).toBeDefined();
+  expect(screen.queryByText(/fragile or difficult to roll back/i)).toBeNull();
   view.unmount();
   window.history.replaceState(null, "", "/enterprise");
   render(<App />);
-  expect(screen.getByRole("heading", { name: "Engineering Solutions", level: 3 })).toBeDefined();
-  expect(screen.queryByRole("heading", { name: "Digital Foundations", level: 3 })).toBeNull();
+  expect(screen.getByRole("heading", { name: "Help your team deliver with a clearer direction." })).toBeDefined();
+  expect(screen.getByRole("heading", { name: "Releases are fragile or difficult to roll back.", level: 3 })).toBeDefined();
+  expect(screen.queryByText(/People cannot quickly find you/i)).toBeNull();
 });
 
 test("mobile menu is a disclosure with a real controlled navigation element", () => {
@@ -124,32 +159,52 @@ test("mobile menu is a disclosure with a real controlled navigation element", ()
   expect(toggle.getAttribute("aria-expanded")).toBe("false");
 });
 
-test("homepage leads with business outcomes, problem paths, balanced decisions, and closed-intake destinations", () => {
+test("homepage leads with concrete problem paths and approved proof without repeated CTAs", () => {
   render(<App />);
 
   expect(screen.getByRole("heading", { level: 1, name: "Technology that earns its place in your business." })).toBeDefined();
   expect(screen.getAllByText(brand.philosophy).length).toBeGreaterThan(0);
-  expect(screen.getByRole("link", { name: "Explore solutions" }).getAttribute("href")).toBe("/services");
+  expect(screen.getByRole("link", { name: "See our work" }).getAttribute("href")).toBe("/work");
   expect(screen.getByRole("link", { name: "See how we work" }).getAttribute("href")).toBe("/approach");
   expect(screen.getByRole("heading", { name: "Recognize the problem. Find the right move." })).toBeDefined();
-  expect(screen.getByRole("heading", { name: "Your business is growing. Your tools aren't keeping up." })).toBeDefined();
-  expect(screen.getByRole("heading", { name: "You have an idea. Should you buy, connect, or build?" })).toBeDefined();
-  expect(screen.getByRole("heading", { name: "Your systems are harder and more expensive to change." })).toBeDefined();
+  expect(screen.getByRole("heading", { name: "My business is growing; my tools are slowing me down." })).toBeDefined();
+  expect(screen.getByRole("heading", { name: "I have an idea. Do I buy it, connect tools, or build?" })).toBeDefined();
+  expect(screen.getByRole("heading", { name: "My systems are expensive or difficult to change." })).toBeDefined();
   expect(screen.getByRole("heading", { name: "Not everything needs to be custom-built." })).toBeDefined();
+  expect(screen.getByRole("heading", { name: "Real systems, with status and scope made clear." })).toBeDefined();
+  expect(screen.getAllByText("In use").length).toBeGreaterThanOrEqual(2);
+  expect(screen.getByRole("link", { name: "See all work and experiments" }).getAttribute("href")).toBe("/work");
   for (const option of ["Buy", "Connect", "Improve", "Build"]) {
     expect(screen.getByRole("heading", { name: option, level: 3 })).toBeDefined();
   }
-  expect(screen.getByText(/Illustrative scenarios — not client case studies/)).toBeDefined();
+  expect(screen.queryByText(/Illustrative scenarios|not client case studies/)).toBeNull();
   expect(screen.getByText(/total cost, maintenance ownership, data portability/)).toBeDefined();
-  expect(screen.getByRole("link", { name: "Prepare for discovery" }).getAttribute("href")).toBe("/contact");
-  expect(screen.getAllByText(/Inquiries are not open yet/).length).toBeGreaterThan(0);
+  expect(screen.queryByText(/Start with the problem, not the platform/)).toBeNull();
+  expect(screen.queryByRole("link", { name: /Prepare for discovery|Inquiries are not open yet/ })).toBeNull();
   expect(screen.queryByRole("link", { name: /Digital Foundations/ })).toBeNull();
 });
 
-test("discovery preparation is useful without opening collection or inventing contact details", () => {
+test("work page separates client projects, in-progress work and founder experiments", () => {
+  window.history.replaceState(null, "", "/work");
+  render(<App />);
+  const clientWork = screen.getByRole("region", { name: "Client work" });
+  const experiments = screen.getByRole("region", { name: "Founder experiments and products" });
+  expect(within(clientWork).getByRole("heading", { name: "R3 Counseling" })).toBeDefined();
+  expect(within(clientWork).getByRole("heading", { name: "Sugar Society SC" })).toBeDefined();
+  expect(within(clientWork).getByRole("heading", { name: "The Lab Performance & Strength" })).toBeDefined();
+  expect(within(clientWork).queryByRole("heading", { name: "Candy Map / Neighborhood Celebrations" })).toBeNull();
+  expect(within(experiments).getByRole("heading", { name: "Candy Map / Neighborhood Celebrations" })).toBeDefined();
+  expect(within(experiments).getByText(/residency and ownership are not verified/)).toBeDefined();
+  expect(within(clientWork).getByText("In progress")).toBeDefined();
+  expect(within(experiments).getByText("Experiment")).toBeDefined();
+  expect(screen.getAllByRole("link", { name: "Public source repository" })).toHaveLength(4);
+});
+
+test("contact status is clear without opening collection or inventing a contact channel", () => {
   window.history.replaceState(null, "", "/contact");
   render(<App />);
-  expect(screen.getByText("Discovery booking and inquiries are not open in this preview.")).toBeDefined();
+  expect(screen.getByRole("heading", { name: "Public inquiries and discovery booking are closed." })).toBeDefined();
+  expect(screen.getByText(/This page is preparation guidance only; it does not send an inquiry/)).toBeDefined();
   expect(screen.getByRole("heading", { name: "The constraints" })).toBeDefined();
   expect(document.querySelector('a[href^="mailto:"], a[href^="tel:"], form')).toBeNull();
 });
@@ -170,27 +225,44 @@ test("engagement options describe scope and ownership without payment terms", ()
     expect(screen.getByRole("heading", { name })).toBeDefined();
   }
   expect(screen.getByText(/A retainer is not unlimited work/)).toBeDefined();
-  expect(screen.getByText(/No payment terms, response-time guarantees or service levels/)).toBeDefined();
+  expect(screen.getByText(/Each stage has an output, an owner and a decision checkpoint/)).toBeDefined();
+  expect(screen.queryByText(/Start with the problem, not the platform/)).toBeNull();
 });
 
-test("owner-directed software explains the reviewed path from a request to integration scope", () => {
+test("owner-directed software keeps changes reviewed, scoped and accountable", () => {
   window.history.replaceState(null, "", "/approach");
   render(<App />);
   expect(screen.getByRole("navigation", { name: "Main navigation" })
     .querySelector('a[href="/approach#owner-directed"]')).not.toBeNull();
-  expect(screen.getByText("Owner-directed software / selfware")).toBeDefined();
-  expect(screen.getByRole("heading", { name: "Start with the change you want to make." })).toBeDefined();
-  expect(screen.getByText(/When a task is marked ready, include its due date/)).toBeDefined();
+  expect(screen.getAllByText("Owner-directed software").length).toBeGreaterThan(0);
+  expect(screen.getByRole("heading", { name: "Describe the outcome. Engineering makes the change safe to own." })).toBeDefined();
+  expect(screen.getByText(/Integrations need a process map, approved data and access/)).toBeDefined();
   expect(screen.getByRole("heading", { name: "Buy, configure or build?" })).toBeDefined();
-  expect(screen.getByText(/For regulated needs, establish applicable requirements, authorized access, audit evidence, vendor agreements and independent review/)).toBeDefined();
-  expect(screen.getByText(/AI is not compliance/)).toBeDefined();
+  expect(screen.getByText(/Confirm applicable requirements, authorized access, vendor terms and independent review/)).toBeDefined();
+  expect(screen.getByText(/AI is not compliance: use approved data, human review and testing/)).toBeDefined();
   expect(document.querySelector("form")).toBeNull();
+});
+
+test("services index is a compact directory while details retain their decision support", () => {
+  window.history.replaceState(null, "", "/services");
+  render(<App />);
+  expect(screen.getAllByText("Example output:").length).toBe(services.length);
+  expect(screen.getAllByRole("link", { name: "View details" })).toHaveLength(services.length);
+  expect(screen.queryByText(/A starting point:/)).toBeNull();
+});
+
+test("about page gives approved founder context without employer or client outcome claims", () => {
+  window.history.replaceState(null, "", "/about");
+  render(<App />);
+  expect(screen.getByText(/I’m Roderick C\. Tomlin II, founder of Third Down Tech/)).toBeDefined();
+  expect(screen.getByText(/engineering leadership, enterprise architecture and delivery management/)).toBeDefined();
+  expect(document.body.textContent).not.toMatch(/NFL|SAIC|Greyhound|revenue growth|increased conversion/i);
 });
 
 test("unknown and retired payment routes do not show commercial terms or a checkout", () => {
   window.history.replaceState(null, "", "/payment");
   render(<App />);
-  expect(screen.getByRole("heading", { level: 1 }).textContent).toContain("find the next move");
+  expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("This page is not available.");
   expect(screen.getByRole("link", { name: "Return home" }).getAttribute("href")).toBe("/");
   expect(document.querySelector("form")).toBeNull();
 });

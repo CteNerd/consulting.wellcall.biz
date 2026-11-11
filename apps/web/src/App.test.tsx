@@ -12,10 +12,11 @@ test("preview has accessible navigation and no premature inquiry or payment coll
   expect(screen.getByRole("navigation", { name: "Main navigation" })).toBeDefined();
   expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Technology that earns its place in your business.");
   expect(screen.getAllByText("Rethink. Create. Transform.").length).toBeGreaterThan(0);
-  expect(screen.getByText(/We help growing businesses and engineering teams decide what to build/)).toBeDefined();
+  expect(screen.getByText(/We help businesses decide what to buy, connect, improve or build/)).toBeDefined();
   expect(screen.getByRole("link", { name: "Skip to content" }).getAttribute("href")).toBe("#main");
   expect(document.querySelector("form")).toBeNull();
-  expect(screen.getAllByText(/Inquiries are not open yet/).length).toBeGreaterThan(0);
+  expect(screen.getByRole("link", { name: "See our work" }).getAttribute("href")).toBe("/work");
+  expect(screen.getByRole("link", { name: "Contact" }).getAttribute("href")).toBe("/contact");
 });
 
 test("admin route exposes no inbox or sign-in when required settings are absent", () => {

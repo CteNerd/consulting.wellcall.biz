@@ -1,5 +1,4 @@
 import { AdminInbox } from "./AdminInbox.tsx";
-import { readAdminAuthConfiguration } from "./admin-auth.ts";
 import { PublicSite } from "./PublicSite.tsx";
 import { Workspace, workspaceIntentKey } from "./Workspace.tsx";
 import "./style.css";
@@ -13,6 +12,5 @@ export function App() {
   if (search.has("admin") || search.has("code") || search.has("state") || search.has("error")) {
     return <AdminInbox />;
   }
-  const adminConfigured = readAdminAuthConfiguration(import.meta.env, window.location.origin) !== undefined;
-  return <PublicSite adminConfigured={adminConfigured} />;
+  return <PublicSite />;
 }

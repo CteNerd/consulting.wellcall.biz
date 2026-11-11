@@ -163,7 +163,7 @@ export class ApplicationStack extends Stack {
           }),
           new iam.PolicyStatement({
             actions: ["s3:GetObject", "s3:PutObject"],
-            resources: [bucket.arnForObjects("assets/*"), bucket.arnForObjects("index.html")],
+            resources: [bucket.arnForObjects("assets/*"), bucket.arnForObjects("index.html"), bucket.arnForObjects("route-meta/*")],
           }),
           new iam.PolicyStatement({
             actions: ["cloudfront:GetDistribution", "cloudfront:CreateInvalidation", "cloudfront:GetInvalidation"],
