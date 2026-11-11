@@ -26,7 +26,13 @@ import type { Configuration } from "./config.ts";
 import { publicRouteFunctionCode } from "./web-routing.ts";
 
 export class ApplicationStack extends Stack {
-  constructor(scope: Construct, config: Configuration, customDomains = false, brandLaunchApproved = false) {
+  constructor(
+    scope: Construct,
+    config: Configuration,
+    customDomains = false,
+    brandLaunchApproved = false,
+    activatePublicRouteMetadata = false,
+  ) {
     super(scope, `${config.prefix}-foundation`, {
       env: { account: config.account, region: config.region },
       synthesizer: new CliCredentialsStackSynthesizer({
@@ -92,7 +98,7 @@ export class ApplicationStack extends Stack {
       validation: acm.CertificateValidation.fromDns(zone),
     }) : undefined;
     const publicRouting = new cloudfront.Function(this, "PublicPageRouting", {
-      code: cloudfront.FunctionCode.fromInline(publicRouteFunctionCode),
+      code: cloudfront.FunctionCode.fromInline(publicRouteFunctionCode(activatePublicRouteMetadata)),
       runtime: cloudfront.FunctionRuntime.JS_2_0,
       comment: "Serve the public page shell only for approved Third Down routes",
     });

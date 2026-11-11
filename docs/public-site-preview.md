@@ -41,20 +41,23 @@ has no public navigation link. It is not an enrollment flow.
 The source-only infrastructure change in `infra/src/web-routing.ts` associates
 a CloudFront viewer-request rewrite with the web distribution. It rewrites only
 the 14 approved public paths, with optional trailing slashes, for `GET` and
-`HEAD` requests to a route-specific static HTML shell while preserving query
-parameters: `/` maps to `index.html`, and the other routes map to
-`route-meta/*.html`. Each shell loads the same SPA bundles and carries unique
-title, description, canonical, Open Graph and Twitter metadata. Unknown paths
-and asset requests are left to the origin so real missing-resource errors are
-not hidden. Local Vite navigation renders the frontend recovery page for an
-unknown path; a hosted unknown path remains an origin missing-resource response
-instead of being rewritten to the SPA.
+`HEAD` requests while preserving query parameters. The default
+`activatePublicRouteMetadata=false` mode maps approved paths to `index.html`;
+only explicit `true` maps non-root pages to `route-meta/*.html`. Each generated
+shell loads the same SPA bundles and carries unique title, description,
+canonical, Open Graph and Twitter metadata. Unknown paths and asset requests
+are left to the origin so real missing-resource errors are not hidden. Local
+Vite navigation renders the frontend recovery page for an unknown path; a
+hosted unknown path remains an origin missing-resource response instead of
+being rewritten to the SPA.
 
-This edge change has **not** been deployed. The generated static shells must be
-published before the reviewed infrastructure migration switches the rewrite to
-them; the promotion workflow stages and verifies the shells and reports whether
-the mapping is active. Until both steps are complete, hosted routes may continue
-to serve the shared SPA entry point. Local Vite deep links work without that
+This edge change has **not** been deployed. For migration, first deploy the
+compatibility mode to grant shell publication access without routing to shells
+that are not present. Publish and verify the shells with `shells_only`, then
+deploy with `activatePublicRouteMetadata=true` and verify clean routes with
+`active_routes`. Until the first stack update, the current host can continue to
+return origin errors for deep links; after the compatibility update they map
+to the shared SPA entry point. Local Vite deep links work without that
 migration. Existing development hostname aliases and ACM certificate settings
 are unchanged; this work does not change DNS, distribution aliases or
 certificates.

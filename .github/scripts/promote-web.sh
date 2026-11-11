@@ -3,6 +3,7 @@ set -euo pipefail
 
 test "$AWS_ACCOUNT_ID" = "425061472162"
 test "$RELEASE_ENVIRONMENT" = development || test "$RELEASE_ENVIRONMENT" = production
+test "$ROUTE_VERIFICATION_MODE" = shells_only || test "$ROUTE_VERIFICATION_MODE" = active_routes
 mkdir -p .release
 cp candidate/manifest.json .release/manifest.json
 node infra/src/check-web-release.ts environment
@@ -62,36 +63,38 @@ promotion_state=invalidating
 record_promotion 0
 aws cloudfront wait invalidation-completed --distribution-id "$PREVIEW_DISTRIBUTION_ID" --id "$invalidation"
 
-route_metadata_active=true
-for path in / /small-business /enterprise /work /services /approach /about /faq /contact \
-  /services/digital-foundations /services/engineering-solutions /services/fractional-leadership \
-  /services/ai-automation /services/cloud-cost-optimization /services/ai-automation/ \
-  '/?workspace' '/?admin' '/?code=closed&state=closed'; do
-  route_path=$(printf '%s' "$path" | sed 's/[?].*$//')
-  if test "$route_path" != "/"; then route_path=$(printf '%s' "$route_path" | sed 's#/$##'); fi
-  if test "$route_path" = "/"; then
-    route_html=candidate/index.html
-  else
-    route_file=$(printf '%s' "$route_path" | sed 's#^/##; s#/#--#g')
-    route_html="candidate/route-meta/$route_file.html"
-  fi
-  status=$(curl --retry 5 --retry-all-errors --max-time 30 --silent --show-error \
-    -D .release/headers --output .release/published.html --write-out "%{http_code}" "$PREVIEW_WEB_URL$path")
-  if test "$route_path" = "/work" && { test "$status" = "403" || test "$status" = "404"; }; then
-    route_metadata_active=false
-    continue
-  fi
-  test "$status" = "200"
-  if ! cmp "$route_html" .release/published.html; then
-    cmp candidate/index.html .release/published.html
-    if test "$route_path" != "/"; then route_metadata_active=false; fi
-  fi
+verify_web_headers() {
   if test "$RELEASE_ENVIRONMENT" = development; then
     grep -Eiq '^x-robots-tag:.*noindex' .release/headers
   else
     if grep -Eiq '^x-robots-tag:.*(noindex|nofollow)' .release/headers; then exit 1; fi
   fi
-done
+}
+curl --fail --retry 5 --retry-all-errors --max-time 30 --silent --show-error \
+  -D .release/headers --output .release/published.html "$PREVIEW_WEB_URL/"
+cmp candidate/index.html .release/published.html
+verify_web_headers
+
+if test "$ROUTE_VERIFICATION_MODE" = active_routes; then
+  for path in /small-business /enterprise /work /services /approach /about /faq /contact \
+    /services/digital-foundations /services/engineering-solutions /services/fractional-leadership \
+    /services/ai-automation /services/cloud-cost-optimization /services/ai-automation/ \
+    '/?workspace' '/?admin' '/?code=closed&state=closed'; do
+    route_path=$(printf '%s' "$path" | sed 's/[?].*$//')
+    if test "$route_path" != "/"; then route_path=$(printf '%s' "$route_path" | sed 's#/$##'); fi
+    if test "$route_path" = "/"; then
+      route_html=candidate/index.html
+    else
+      route_file=$(printf '%s' "$route_path" | sed 's#^/##; s#/#--#g')
+      route_html="candidate/route-meta/$route_file.html"
+    fi
+    curl --fail --retry 5 --retry-all-errors --max-time 30 --silent --show-error \
+      -D .release/headers --output .release/published.html "$PREVIEW_WEB_URL$path"
+    cmp "$route_html" .release/published.html
+    verify_web_headers
+  done
+fi
+
 for html in candidate/route-meta/*.html; do
   key=$(printf '%s' "$html" | sed 's#^candidate/##')
   curl --fail --retry 3 --retry-all-errors --max-time 30 --silent --show-error \
@@ -112,8 +115,8 @@ promotion_state=verified
 record_promotion 0
 printf '### %s web promotion\n- Source: `%s`\n- Run: `%s` (attempt %s)\n- Candidate manifest SHA-256: `%s`\n- URL: %s\n- Intake closed; auth unconfigured; immutable assets retained.\n' \
   "$RELEASE_ENVIRONMENT" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$CANDIDATE_MANIFEST_SHA256" "$PREVIEW_WEB_URL" >> "$GITHUB_STEP_SUMMARY"
-if test "$route_metadata_active" = true; then
-  printf -- '- Static route metadata: active for approved page URLs.\n' >> "$GITHUB_STEP_SUMMARY"
+if test "$ROUTE_VERIFICATION_MODE" = active_routes; then
+  printf -- '- Route verification: all approved public paths match their static shells.\n' >> "$GITHUB_STEP_SUMMARY"
 else
-  printf -- '- Static route metadata: shells staged and verified; deploy the infrastructure route mapping to activate them.\n' >> "$GITHUB_STEP_SUMMARY"
+  printf -- '- Route verification: shells staged and byte-verified; clean public paths were not tested.\n' >> "$GITHUB_STEP_SUMMARY"
 fi

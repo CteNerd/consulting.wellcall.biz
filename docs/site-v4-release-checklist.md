@@ -4,9 +4,9 @@ This is a source-only website change. It does not publish assets, change DNS,
 enable lead intake, modify AWS resources, or authorize a production deployment.
 The new `/work` route also requires the reviewed CloudFront rewrite in
 [`infra/src/web-routing.ts`](../infra/src/web-routing.ts); that rewrite is not
-deployed by this change. The production artifact includes generated route HTML
-with unique crawler-readable metadata; publish those shells before deploying
-the route rewrite that serves them.
+deployed by this change. The stack defaults to an index-shell compatibility
+mapping; static route metadata is an explicit second-phase activation. Publish
+and byte-verify all shells before deploying that activation.
 
 ## Portfolio publication record
 
@@ -87,9 +87,9 @@ The repeated “Start with the problem, not the platform” block was removed fr
 illustrative homepage scenario cards were removed. The hosted route allowlist
 now includes `/work`; approved routes map to their generated metadata shells,
 while unknown paths and assets retain origin error behavior. The publisher
-verifies each shell byte-for-byte and reports whether the CloudFront mapping is
-active, so the staged artifact can be published before the infrastructure
-rewrite is switched.
+verifies each shell byte-for-byte in `shells_only` mode before the mapping is
+activated. Use `active_routes` after deploying the explicit metadata mapping;
+unknown paths and assets retain origin error behavior.
 
 ## Visual review
 

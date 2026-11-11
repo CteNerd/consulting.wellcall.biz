@@ -7,6 +7,22 @@ on:
         description: Full reviewed main SHA (must equal the dispatch SHA)
         required: true
         type: string
+      development_route_verification:
+        description: Verify published route shells only, or require active clean-route mappings
+        required: true
+        type: choice
+        options:
+          - shells_only
+          - active_routes
+        default: shells_only
+      production_route_verification:
+        description: Verify published route shells only, or require active clean-route mappings
+        required: true
+        type: choice
+        options:
+          - shells_only
+          - active_routes
+        default: shells_only
 
 permissions:
   contents: read
@@ -92,6 +108,7 @@ jobs:
       AWS_ACCOUNT_ID: "425061472162"
       AWS_WEB_PUBLISH_ROLE_ARN: ${{ vars.AWS_WEB_PUBLISH_ROLE_ARN }}
       RELEASE_ENVIRONMENT: development
+      ROUTE_VERIFICATION_MODE: ${{ inputs.development_route_verification }}
       CANDIDATE_MANIFEST_SHA256: ${{ needs.candidate.outputs.manifest_sha256 }}
       AWS_PAGER: ""
     steps:
@@ -150,6 +167,7 @@ jobs:
       AWS_ACCOUNT_ID: "425061472162"
       AWS_WEB_PUBLISH_ROLE_ARN: ${{ vars.AWS_WEB_PUBLISH_ROLE_ARN }}
       RELEASE_ENVIRONMENT: production
+      ROUTE_VERIFICATION_MODE: ${{ inputs.production_route_verification }}
       CANDIDATE_MANIFEST_SHA256: ${{ needs.candidate.outputs.manifest_sha256 }}
       AWS_PAGER: ""
     steps:

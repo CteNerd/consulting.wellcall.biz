@@ -6,9 +6,9 @@ import { publicRouteFunctionCode, publicRouteHtmlPath } from "./web-routing.ts";
 type Request = { method: string; uri: string; querystring: Record<string, { value: string }> };
 type Handler = (event: { request: Request }) => Request;
 
-function route(uri: string, method = "GET") {
+function route(uri: string, method = "GET", activatePublicRouteMetadata = false) {
   const context: { handler?: Handler } = {};
-  runInNewContext(publicRouteFunctionCode, context);
+  runInNewContext(publicRouteFunctionCode(activatePublicRouteMetadata), context);
   assert.ok(context.handler);
   const request = { method, uri, querystring: { code: { value: "oauth-code" } } };
   const response = context.handler({ request });
@@ -17,7 +17,18 @@ function route(uri: string, method = "GET") {
   return response.uri;
 }
 
-test("direct public page URLs serve the SPA shell without losing OAuth query parameters", () => {
+test("public URLs retain the index-shell mapping until static route metadata is activated", () => {
+  for (const path of [
+    "/", "/small-business", "/enterprise", "/work", "/services", "/services/digital-foundations",
+    "/services/engineering-solutions", "/services/fractional-leadership",
+    "/services/ai-automation", "/services/cloud-cost-optimization", "/approach",
+    "/about", "/faq", "/contact",
+  ]) {
+    assert.equal(route(path), "/index.html", path);
+  }
+});
+
+test("activated public page URLs serve their metadata shells without losing OAuth query parameters", () => {
   for (const path of [
     "/", "/small-business", "/enterprise", "/work", "/services", "/services/digital-foundations",
     "/services/engineering-solutions", "/services/fractional-leadership",
@@ -25,8 +36,8 @@ test("direct public page URLs serve the SPA shell without losing OAuth query par
     "/about", "/faq", "/contact",
   ]) {
     const expected = `/${publicRouteHtmlPath(path)}`;
-    assert.equal(route(path), expected, path);
-    assert.equal(route(path === "/" ? path : `${path}/`, "HEAD"), expected, path);
+    assert.equal(route(path, "GET", true), expected, path);
+    assert.equal(route(path === "/" ? path : `${path}/`, "HEAD", true), expected, path);
   }
 });
 

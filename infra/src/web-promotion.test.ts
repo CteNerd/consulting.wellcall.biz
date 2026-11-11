@@ -66,6 +66,7 @@ console.log(JSON.stringify(value));
 import fs from "node:fs";
 const args = process.argv.slice(2);
 const url = new URL(args[args.length - 1]);
+fs.appendFileSync("curl.log", url.pathname + url.search + "\\n");
 const headers = args.indexOf("-D");
 if (headers !== -1) fs.writeFileSync(args[headers + 1],
   process.env.RELEASE_ENVIRONMENT === "development" && !process.env.OMIT_NOINDEX
@@ -74,16 +75,17 @@ if (args.includes("--write-out")) {
   let status = "404";
   let routeFile;
   if (url.hostname.includes("execute-api")) status = url.pathname === "/leads" ? "503" : "401";
-  else if (process.env.ROUTE_METADATA_INACTIVE && url.pathname === "/work") status = "403";
   else {
     const routePath = url.pathname.replace(/\\/$/, "") || "/";
     const approvedPaths = new Set(${JSON.stringify(publicPaths)});
-    routeFile = routePath === "/" ? "index.html"
-      : routePath.startsWith("/assets/") || routePath.startsWith("/route-meta/")
-        ? routePath.slice(1)
-        : process.env.ROUTE_METADATA_INACTIVE && approvedPaths.has(routePath) ? "index.html"
+    if (process.env.ROUTE_METADATA_INACTIVE && approvedPaths.has(routePath) && routePath !== "/") status = "403";
+    else {
+      routeFile = routePath === "/" ? "index.html"
+        : routePath.startsWith("/assets/") || routePath.startsWith("/route-meta/")
+          ? routePath.slice(1)
           : "route-meta/" + routePath.slice(1).replace(/\\//g, "--") + ".html";
-    if (fs.existsSync("candidate/" + routeFile)) status = "200";
+      if (fs.existsSync("candidate/" + routeFile)) status = "200";
+    }
   }
   const output = args.indexOf("--output");
   if (status === "200" && output !== -1 && args[output + 1] !== "/dev/null") {
@@ -95,18 +97,25 @@ if (args.includes("--write-out")) {
   process.stdout.write(JSON.stringify({ status: "ok", application: "consulting" }));
 } else {
   const routePath = url.pathname.replace(/\\/$/, "") || "/";
+  const approvedPaths = new Set(${JSON.stringify(publicPaths)});
+  if (process.env.ROUTE_METADATA_INACTIVE && approvedPaths.has(routePath) && routePath !== "/") process.exit(22);
   const routeFile = routePath === "/" ? "index.html"
     : routePath.startsWith("/assets/") || routePath.startsWith("/route-meta/")
       ? routePath.slice(1)
       : "route-meta/" + routePath.slice(1).replace(/\\//g, "--") + ".html";
   const data = fs.readFileSync("candidate/" + routeFile);
-  if (!args.includes("--output")) process.stdout.write(process.env.CORRUPT_PUBLISHED ? "wrong bytes" : data);
+  const output = args.indexOf("--output");
+  if (output === -1) process.stdout.write(process.env.CORRUPT_PUBLISHED ? "wrong bytes" : data);
+  else if (args[output + 1] !== "/dev/null") {
+    fs.writeFileSync(args[output + 1], process.env.CORRUPT_PUBLISHED ? "wrong bytes" : data);
+  }
 }
 `, { mode: 0o755 });
 
   function run(environment: string, extra: NodeJS.ProcessEnv = {}) {
     rmSync(join(root, ".release"), { recursive: true, force: true });
     writeFileSync(join(root, "aws.log"), "");
+    writeFileSync(join(root, "curl.log"), "");
     return spawnSync("bash", [join(repository, ".github/scripts/promote-web.sh")], {
       cwd: root, encoding: "utf8", env: {
         ...process.env, PATH: `${join(root, "bin")}:${process.env.PATH}`,
@@ -114,7 +123,8 @@ if (args.includes("--write-out")) {
         GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_SHA: sourceSha, GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "1",
         GITHUB_STEP_SUMMARY: join(root, "summary"), AWS_ACCOUNT_ID: "425061472162",
         AWS_WEB_PUBLISH_ROLE_ARN: `arn:aws:iam::425061472162:role/rct/consulting/${environment}/rct-consulting-${environment}-web-publish`,
-        RELEASE_ENVIRONMENT: environment, CANDIDATE_MANIFEST_SHA256: hash, ...extra,
+        RELEASE_ENVIRONMENT: environment, ROUTE_VERIFICATION_MODE: "active_routes",
+        CANDIDATE_MANIFEST_SHA256: hash, ...extra,
       },
     });
   }
@@ -130,9 +140,14 @@ if (args.includes("--write-out")) {
     assert.equal(readFileSync(join(root, ".release/previous-index.html"), "utf8"), "previous release");
     assert.equal(JSON.parse(readFileSync(join(root, ".release/promotion.json"), "utf8")).manifestSha256, hash);
   }
-  const staged = run("production", { ROUTE_METADATA_INACTIVE: "1" });
+  const staged = run("production", { ROUTE_VERIFICATION_MODE: "shells_only", ROUTE_METADATA_INACTIVE: "1" });
   assert.equal(staged.status, 0, staged.stderr);
-  assert.match(readFileSync(join(root, "summary"), "utf8"), /shells staged and verified/);
+  assert.match(readFileSync(join(root, "summary"), "utf8"), /clean public paths were not tested/);
+  const stagedRequests = readFileSync(join(root, "curl.log"), "utf8");
+  assert.doesNotMatch(stagedRequests, /^\/small-business$/m);
+  assert.match(stagedRequests, /^\/route-meta\/small-business\.html$/m);
+  const prematureActivation = run("production", { ROUTE_VERIFICATION_MODE: "active_routes", ROUTE_METADATA_INACTIVE: "1" });
+  assert.notEqual(prematureActivation.status, 0);
   for (const extra of [{ FAIL_INVALIDATION_WAIT: "1" }, { CORRUPT_PUBLISHED: "1" }]) {
     const failed = run("production", extra);
     assert.notEqual(failed.status, 0);

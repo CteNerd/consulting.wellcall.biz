@@ -237,6 +237,20 @@ test("development web publisher has exact OIDC trust and a matching artifact-onl
   assert.doesNotMatch(policies, /DeleteObject|PutBucket|UpdateDistribution|CreateStack|ExecuteChangeSet|iam:|dynamodb:|"Resource":"\*"/);
 });
 
+test("static route metadata activation is separate from shell publisher permissions", () => {
+  const config = configuration("development", "123456789012");
+  const codeFor = (activatePublicRouteMetadata: boolean) => {
+    const template = Template.fromStack(new ApplicationStack(new App(), config, false, false, activatePublicRouteMetadata));
+    const [routingFunction] = Object.values(template.findResources("AWS::CloudFront::Function"));
+    assert.ok(routingFunction);
+    assert.equal(typeof routingFunction.Properties.FunctionCode, "string");
+    return routingFunction.Properties.FunctionCode;
+  };
+  assert.match(codeFor(false), /request\.uri = "\/index\.html"/);
+  assert.doesNotMatch(codeFor(false), /route-meta/);
+  assert.match(codeFor(true), /route-meta/);
+});
+
 test("custom DNS reuses only the existing zone and production requires explicit clearance", () => {
   const config = configuration("production", "123456789012");
   assert.throws(() => new ApplicationStack(new App(), config, true), /approval/);
