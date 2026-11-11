@@ -16,13 +16,16 @@ export function presentationHtml(html: string, env: Record<string, unknown>): st
   if (!config.publicBrand) return html;
   return html
     .replace('    <meta name="robots" content="noindex, nofollow" />\n', "")
-    .replace("Development preview: practical engineering", "Practical engineering")
+    .replace(
+      "Development preview: technology consulting for growing businesses and engineering teams. Decide what to buy, connect, improve or build.",
+      "Technology consulting for growing businesses and engineering teams. Decide what to buy, connect, improve or build.",
+    )
     .replace("Third Down Technologies | Development preview", "Third Down Technologies | Rethink. Create. Transform.")
     .replace("</head>", `${config.origin ? `  <link rel="canonical" href="${config.origin}/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Third Down Technologies" />
     <meta property="og:title" content="Third Down Technologies | Rethink. Create. Transform." />
-    <meta property="og:description" content="Practical engineering, digital foundations and technology leadership for small businesses and enterprise teams. Intake closed." />
+    <meta property="og:description" content="Technology consulting for growing businesses and engineering teams. Decide what to buy, connect, improve or build." />
     <meta property="og:url" content="${config.origin}/" />
     <meta property="og:image" content="${config.origin}/assets/third-down-social-8e2cf34fa2ac.jpg" />
     <meta property="og:image:type" content="image/jpeg" />
@@ -31,7 +34,7 @@ export function presentationHtml(html: string, env: Record<string, unknown>): st
     <meta property="og:image:alt" content="Third Down Technologies. Rethink. Create. Transform. A strategic playbook connecting technology and the next move." />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Third Down Technologies | Rethink. Create. Transform." />
-    <meta name="twitter:description" content="Practical engineering, digital foundations and technology leadership for small businesses and enterprise teams. Intake closed." />
+    <meta name="twitter:description" content="Technology consulting for growing businesses and engineering teams. Decide what to buy, connect, improve or build." />
     <meta name="twitter:image" content="${config.origin}/assets/third-down-social-8e2cf34fa2ac.jpg" />
     <meta name="twitter:image:alt" content="Third Down Technologies. Rethink. Create. Transform. A strategic playbook connecting technology and the next move." />
   ` : ""}</head>`);

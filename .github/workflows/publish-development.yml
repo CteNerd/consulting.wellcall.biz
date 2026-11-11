@@ -2,6 +2,15 @@ name: Publish development web preview
 
 on:
   workflow_dispatch:
+    inputs:
+      route_verification_mode:
+        description: Verify published shells only, or require active clean-route mappings
+        required: true
+        type: choice
+        options:
+          - shells_only
+          - active_routes
+        default: shells_only
 
 permissions:
   contents: read
@@ -23,6 +32,7 @@ jobs:
       AWS_REGION: us-east-1
       AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
       AWS_WEB_PUBLISH_ROLE_ARN: ${{ vars.AWS_WEB_PUBLISH_ROLE_ARN }}
+      ROUTE_VERIFICATION_MODE: ${{ inputs.route_verification_mode }}
       AWS_PAGER: ""
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -82,15 +92,34 @@ jobs:
           set -euo pipefail
           test -s apps/web/dist/index.html
           aws s3 sync apps/web/dist/ "s3://$PREVIEW_BUCKET/" --exclude "*" --include "assets/*" --cache-control "public,max-age=31536000,immutable" --only-show-errors
-          aws s3 cp apps/web/dist/index.html "s3://$PREVIEW_BUCKET/index.html" --content-type "text/html" --cache-control "no-cache" --only-show-errors
+          for html in apps/web/dist/index.html apps/web/dist/route-meta/*.html; do
+            key=$(printf '%s' "$html" | sed 's#^apps/web/dist/##')
+            aws s3 cp "$html" "s3://$PREVIEW_BUCKET/$key" --content-type "text/html" --cache-control "no-cache" --only-show-errors
+          done
           invalidation=$(aws cloudfront create-invalidation --distribution-id "$PREVIEW_DISTRIBUTION_ID" --paths "/*" --query Invalidation.Id --output text)
           aws cloudfront wait invalidation-completed --distribution-id "$PREVIEW_DISTRIBUTION_ID" --id "$invalidation"
       - name: Verify the published entry point
         shell: bash
         run: |
           set -euo pipefail
+          test "$ROUTE_VERIFICATION_MODE" = shells_only || test "$ROUTE_VERIFICATION_MODE" = active_routes
           curl --fail --retry 5 --retry-all-errors --max-time 30 --silent --show-error "$PREVIEW_WEB_URL/" > "$RUNNER_TEMP/published-preview.html"
           cmp apps/web/dist/index.html "$RUNNER_TEMP/published-preview.html"
+          for html in apps/web/dist/route-meta/*.html; do
+            key=$(printf '%s' "$html" | sed 's#^apps/web/dist/##')
+            curl --fail --retry 3 --retry-all-errors --max-time 30 --silent --show-error "$PREVIEW_WEB_URL/$key" > "$RUNNER_TEMP/published-route.html"
+            cmp "$html" "$RUNNER_TEMP/published-route.html"
+          done
+          if test "$ROUTE_VERIFICATION_MODE" = active_routes; then
+            for route in /small-business /enterprise /work /services /approach /about /faq /contact \
+              /services/digital-foundations /services/engineering-solutions /services/fractional-leadership \
+              /services/ai-automation /services/cloud-cost-optimization /services/ai-automation/; do
+              route_file=$(printf '%s' "$route" | sed 's#^/##; s#/$##; s#/#--#g')
+              curl --fail --retry 3 --retry-all-errors --max-time 30 --silent --show-error \
+                "$PREVIEW_WEB_URL$route" > "$RUNNER_TEMP/published-route.html"
+              cmp "apps/web/dist/route-meta/$route_file.html" "$RUNNER_TEMP/published-route.html"
+            done
+          fi
           for asset in apps/web/dist/assets/*; do
             test -f "$asset"
             name=$(basename "$asset")
@@ -98,3 +127,8 @@ jobs:
             cmp "$asset" "$RUNNER_TEMP/published-asset"
           done
           printf 'Development preview: %s\n\nPublic inquiry collection remains disabled.\n' "$PREVIEW_WEB_URL" >> "$GITHUB_STEP_SUMMARY"
+          if test "$ROUTE_VERIFICATION_MODE" = active_routes; then
+            printf 'Every approved clean public route matched its static shell.\n' >> "$GITHUB_STEP_SUMMARY"
+          else
+            printf 'Route shells are staged and byte-verified; clean public paths were not tested.\n' >> "$GITHUB_STEP_SUMMARY"
+          fi

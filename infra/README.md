@@ -24,15 +24,15 @@ Missing or invalid target context fails. `us-east-1` is explicit.
   DynamoDB TTL only after an explicit retention value is provided.
 - Private S3 with CloudFront OAC, HTTPS redirection and security headers.
   Assets are not uploaded by synth. No broad SPA error fallback is configured.
-  A source-only viewer-request CloudFront Function rewrites GET/HEAD requests
-  for the 13 approved public pages (including a trailing slash) to `index.html`.
-  Query parameters are preserved. Unknown URLs and missing assets retain their
-  origin errors; API/internal paths are not added as public pages. New public
-  routes must update this exact allowlist alongside the frontend. The currently
-  deployed distribution has no such rewrite: a web-only publish cannot enable
-  hosted deep-link refresh. Review the infrastructure change and preserve the
-  existing development alias/certificate before deploying it; no live update
-  is authorized by this source change.
+  A source-only viewer-request CloudFront Function handles GET/HEAD requests
+  for an exact 14-page allowlist (including `/work` and trailing slashes).
+  `activatePublicRouteMetadata=false` maps approved paths to `index.html` for
+  compatibility; only explicit `true` maps them to `route-meta/*.html`. Query
+  parameters are preserved. Unknown URLs and missing assets retain origin
+  errors; API/internal paths are not public pages. New routes must update the
+  exact allowlist alongside the frontend. The currently deployed distribution
+  has no such rewrite, so use the staged migration below; a web-only publish
+  cannot activate hosted deep-link metadata.
 - Invitation-only Cognito with required authenticator MFA and a public client.
   The web source includes a configuration-gated PKCE admin sign-in and inbox;
   both environments define a hosted Cognito login domain. Neither environment
@@ -249,7 +249,7 @@ Infrastructure deployment automation remains outstanding.
 Development source defines an OIDC web publisher whose identity policy and
 permissions boundary are the same narrowly scoped managed policy: bucket
 listing/location and public-access-block/policy-status reads, GetObject/PutObject
-for `assets/*` and `index.html`, invalidation
+for `assets/*`, `index.html` and `route-meta/*`, invalidation
 and status reads for its own CloudFront distribution, and DescribeStacks for
 its own stack. It cannot delete objects, deploy infrastructure, edit identities,
 mutate business data or use production resources. Trust is exact repository,
@@ -272,9 +272,12 @@ After merge and bootstrap, manually run the workflow on `main`. It runs modern
 checks and the high-severity audit, validates stack/account/role/closed intake,
 requires all four S3 public-access blocks and an explicitly non-public bucket
 policy, verifies the OAC origin and anonymous API denial, builds the gated web
-app, uploads hashed assets before `index.html`, waits for invalidation, then
-compares the live entry point and every emitted asset byte-for-byte with the build. It prints the actual
-preview URL only after success. The build explicitly keeps public intake closed.
+app, uploads hashed assets and all HTML shells, waits for invalidation, then
+compares direct route-shell and asset URLs byte-for-byte with the build.
+`route_verification_mode=shells_only` is the migration-safe default and does not
+assume clean routes are active. Select `active_routes` only after deploying the
+static-route mapping; it requires every approved public URL to return its exact
+shell. The build explicitly keeps public intake closed.
 The publisher is independently implemented in each repository to preserve
 separate ownership and release boundaries; no cross-repo runtime dependency is added.
 
@@ -291,6 +294,33 @@ restore: rehearse PITR/auth recovery and artifact rollback before production.
 For a web-only rollback, merge the reviewed revert and rerun the publisher. Old
 hashed assets are intentionally retained and never deleted by publishing.
 This workflow is not an artifact-history rollback system or tested recovery.
+
+### Public route-shell migration and rollback
+
+The function's compatibility mode (`activatePublicRouteMetadata=false`) routes
+approved paths to `index.html`; `true` routes them to the static shells. Keep
+that two-phase boundary when migrating an existing distribution:
+
+1. Review and deploy the stack with `activatePublicRouteMetadata=false`. This
+   grants the publisher `route-meta/*` access without directing requests to
+   shells that have not yet been uploaded.
+2. Run the development publisher or production promotion with
+   `shells_only` verification. It checks the root, every direct route-shell URL,
+   assets and negative paths, but makes no claim about clean-route mapping.
+3. Only after shell bytes are verified, synthesize and deploy that environment
+   with `activatePublicRouteMetadata=true`.
+4. Run verification with `active_routes`; it must compare every approved clean
+   URL with the matching shell. For production promotion, choose the development
+   and production verification modes independently so dev can be activated and
+   checked before production is switched.
+
+For rollback to a **pre-migration** candidate, first deploy the compatibility
+mode (`false`), which sends approved URLs to the index shell. Then rerun the
+selected pre-migration production job; its index-only checks remain compatible.
+Any newer `route-meta/*` objects are inert and need not be deleted. For a
+post-migration candidate, rerun a successful production job that contains all
+matching route shells and use `active_routes`. Never route an index-only
+candidate to static metadata shells.
 
 Strict TS remains enabled. Only infrastructure disables `exactOptionalPropertyTypes`
 because current CDK declarations implement optional interface fields as explicit
@@ -310,18 +340,24 @@ full reviewed `main` SHA as `reviewed_sha`; it must match the dispatch SHA.
 The candidate job installs only modern workspaces on Node 24/npm 11.6.2,
 runs checks once, builds once with explicit production presentation, and
 leaves all intake/consent/API/auth settings disabled or empty.
-The immutable artifact contains only `index.html`, hashed JS/CSS assets and a
-SHA-256 inventory manifest bound to repository, reviewed SHA and run ID.
+The immutable artifact contains `index.html`, one generated `route-meta/*.html`
+shell per public route, hashed JS/CSS assets and a SHA-256 inventory manifest
+bound to repository, reviewed SHA and run ID. Each shell shares the SPA bundles
+but supplies route-specific title, description, canonical URL, Open Graph and
+Twitter metadata to crawlers that do not execute JavaScript.
 Its exact artifact ID and manifest digest pass to both protected jobs.
 Both verify every byte, inventory and provenance before OIDC; neither rebuilds.
 
 The `development` job uses only the dev publisher and verifies account, stack,
-private bucket/OAC, alias/certificate, API health, anonymous 401s, disabled intake,
-HTML/deep links, every emitted asset and missing-path errors. It requires the
+private bucket/OAC, alias/certificate, API health, anonymous 401s, disabled
+intake, the root, every emitted asset and missing-path errors. It requires the
 dev `X-Robots-Tag: noindex, nofollow` header **before** writing public-candidate
-bytes. Infrastructure must install that header and the exact-route function
-first. `production` depends on the successful stage and uses only its own
-protected-environment publisher with the same scoped policy/boundary.
+bytes. Infrastructure must install that header first. Each protected job has a
+route-verification input: `shells_only` checks uploaded shell bytes without
+assuming deep-link mapping, while `active_routes` requires every approved
+clean URL to serve its matching shell. `production` depends on the successful
+stage and uses only its own protected-environment publisher with the same
+scoped policy/boundary.
 The production origin must be exactly `https://thirddowntech.com`.
 No broad SPA fallback, delete sync, identity/data writes or cross-env role
 assumption is permitted.
@@ -343,12 +379,22 @@ From the repository root, offline synthesis (no lookup or deployment):
 npm exec --workspace @rct/consulting-infra -- cdk synth \
   -c environment=development -c account=425061472162 \
   -c existingDevCertificateArn=arn:aws:acm:us-east-1:425061472162:certificate/f188b0ef-39b4-4020-8c95-1b11a586942f \
+  -c activatePublicRouteMetadata=false \
   --output cdk.out/review-development --quiet
 npm exec --workspace @rct/consulting-infra -- cdk synth \
   -c environment=production -c account=425061472162 \
   -c customDomains=true -c brandLaunchApproved=true \
+  -c activatePublicRouteMetadata=false \
   --output cdk.out/review-production --quiet
 ```
+
+After both environments' shell-only promotion has verified the uploaded
+`route-meta/*` bytes, prepare a separate reviewed infrastructure update with
+`-c activatePublicRouteMetadata=true`. Use new synthesis output directories and
+their matching templates/change sets; do not reuse the compatibility-mode
+assemblies. Activate and verify development first. Activate production only
+after its shell-only promotion and approval, then rerun production promotion
+with both route-verification modes set to `active_routes`.
 
 ### Isolated asset bootstrap and current-credential publication
 
@@ -527,8 +573,8 @@ SHA, run/attempt, manifest digest, distribution and invalidation IDs. Each
 record is persisted before S3 publication and updated immediately when an
 invalidation ID is available; an exit trap preserves failed-check state and
 exit status rather than losing the attempted release's provenance. Each
-environment artifact also captures the previous `index.html` when present,
-including on a later verification failure. Old hashed assets remain in S3.
+environment artifact also captures the previous `index.html` and route shells
+when present, including on a later verification failure. Old hashed assets remain in S3.
 Download/archive approved artifacts before expiry if longer recovery is needed.
 
 For exact-byte rollback while the original candidate artifact remains retained,

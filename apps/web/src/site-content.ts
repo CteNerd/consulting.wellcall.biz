@@ -172,10 +172,6 @@ export const stages = [
 
 export const faqs = [
   {
-    question: "Are inquiries or discovery bookings open?",
-    answer: "No. Public intake and discovery booking are closed. There is no live scheduling link, payment collection or promised response window.",
-  },
-  {
     question: "Do I need to know which service I need?",
     answer: "No. Start with the problem: what is difficult today, who is affected and what would improve. The small-business and enterprise paths help you explore likely starting points; discovery is intended to clarify the work rather than sell a predetermined tool.",
   },

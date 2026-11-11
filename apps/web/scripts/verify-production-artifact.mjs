@@ -3,7 +3,9 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadEnv } from "vite";
+import { brand } from "../src/branding.ts";
 import { presentation } from "../src/presentation.ts";
+import { publicPageMetadata } from "../src/route-metadata.ts";
 
 const outputDirectory = fileURLToPath(new URL("../dist/", import.meta.url));
 
@@ -19,6 +21,7 @@ async function collectTextFiles(directory) {
 const textFiles = await collectTextFiles(outputDirectory);
 const contents = await Promise.all(textFiles.map((path) => readFile(path, "utf8")));
 const artifact = contents.join("\n");
+const escapeHtml = (value) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 for (const marker of [
   "uat-manager",
   "uat-contributor",
@@ -34,6 +37,38 @@ for (const marker of [
 
 const config = presentation({ ...loadEnv("production", process.cwd(), "VITE_"), ...process.env });
 const html = await readFile(join(outputDirectory, "index.html"), "utf8");
+const expectedRouteFiles = publicPageMetadata
+  .filter((page) => page.path !== "/")
+  .map((page) => `${page.path.slice(1).replaceAll("/", "--")}.html`)
+  .sort();
+const actualRouteFiles = (await readdir(join(outputDirectory, "route-meta"))).sort();
+assert.deepEqual(actualRouteFiles, expectedRouteFiles, "Generated route HTML must match the public route inventory");
+
+const routeUrls = new Set();
+for (const page of publicPageMetadata.filter((item) => item.path !== "/")) {
+  const routeFile = `${page.path.slice(1).replaceAll("/", "--")}.html`;
+  const routeHtml = await readFile(join(outputDirectory, "route-meta", routeFile), "utf8");
+  const title = `${brand.name} | ${page.title}${config.publicBrand ? "" : " | Development preview"}`;
+  assert.ok(routeHtml.includes(`<title>${escapeHtml(title)}</title>`), `Route title missing for ${page.path}`);
+  assert.ok(
+    routeHtml.includes(`<meta name="description" content="${escapeHtml(page.description)}" />`),
+    `Route description missing for ${page.path}`,
+  );
+  if (config.origin) {
+    const url = `${config.origin}${page.path}`;
+    assert.ok(routeHtml.includes(`<link rel="canonical" href="${url}" />`), `Canonical URL missing for ${page.path}`);
+    assert.ok(routeHtml.includes(`<meta property="og:title" content="${escapeHtml(title)}" />`), `Open Graph title missing for ${page.path}`);
+    assert.ok(routeHtml.includes(`<meta property="og:description" content="${escapeHtml(page.description)}" />`), `Open Graph description missing for ${page.path}`);
+    assert.ok(routeHtml.includes(`<meta property="og:url" content="${url}" />`), `Open Graph URL missing for ${page.path}`);
+    assert.ok(routeHtml.includes(`<meta name="twitter:title" content="${escapeHtml(title)}" />`), `Twitter title missing for ${page.path}`);
+    assert.ok(routeHtml.includes(`<meta name="twitter:description" content="${escapeHtml(page.description)}" />`), `Twitter description missing for ${page.path}`);
+    routeUrls.add(url);
+  } else {
+    assert.ok(!routeHtml.includes("og:title") && !routeHtml.includes("twitter:title"), "Preview must not publish route social metadata");
+  }
+}
+if (config.origin) assert.equal(routeUrls.size, expectedRouteFiles.length, "Every public route needs a unique social URL");
+
 if (config.origin) {
   for (const tag of [
     `<meta property="og:image" content="${config.origin}/assets/third-down-social-8e2cf34fa2ac.jpg" />`,

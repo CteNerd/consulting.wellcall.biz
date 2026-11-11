@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { appendFileSync, lstatSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { publicPaths, publicRouteHtmlPath } from "./web-routing.ts";
 
 const digest = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 const repository = "CteNerd/consulting.wellcall.biz";
@@ -12,15 +13,22 @@ function candidateFiles(directory: string, prefix = ""): Record<string, string> 
     const path = `${prefix}${name}`;
     if (path === "manifest.json") continue;
     const entry = lstatSync(join(directory, path));
-    if (entry.isDirectory() && path === "assets") {
-      Object.assign(files, candidateFiles(directory, "assets/"));
-    } else if (entry.isFile() && /^(?:index\.html|assets\/[a-zA-Z0-9_-]+\.(?:js|css|jpg))$/.test(path)) {
+    if (entry.isDirectory() && (path === "assets" || path === "route-meta")) {
+      Object.assign(files, candidateFiles(directory, `${path}/`));
+    } else if (entry.isFile() && /^(?:index\.html|route-meta\/[a-z0-9-]+\.html|assets\/[a-zA-Z0-9_-]+\.(?:js|css|jpg))$/.test(path)) {
       files[path] = digest(readFileSync(join(directory, path)));
     } else {
       throw new Error(`Unexpected candidate path: ${path}`);
     }
   }
-  if (!prefix && (!files["index.html"] || Object.keys(files).length < 2)) throw new Error("Candidate is incomplete");
+  if (!prefix) {
+    if (!files["index.html"] || Object.keys(files).length < 2) throw new Error("Candidate is incomplete");
+    const expectedRouteFiles = publicPaths.filter((path) => path !== "/").map(publicRouteHtmlPath).sort();
+    const actualRouteFiles = Object.keys(files).filter((path) => path.startsWith("route-meta/")).sort();
+    if (JSON.stringify(actualRouteFiles) !== JSON.stringify(expectedRouteFiles)) {
+      throw new Error("Candidate route metadata is incomplete or unexpected");
+    }
+  }
   return files;
 }
 

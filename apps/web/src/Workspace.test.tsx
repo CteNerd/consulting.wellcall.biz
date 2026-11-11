@@ -54,9 +54,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-test("the public footer offers a workspace entry without bypassing sign-in", async () => {
+test("the public site hides workspace access but the direct workspace route still requires sign-in", async () => {
   render(<App />);
-  expect(screen.getByRole("link", { name: "Team workspace" }).getAttribute("href")).toBe("/?workspace");
+  expect(screen.queryByRole("link", { name: "Team workspace" })).toBeNull();
   cleanup();
   window.history.replaceState(null, "", "/?workspace");
   render(<App />);
