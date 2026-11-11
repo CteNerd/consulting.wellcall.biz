@@ -12,7 +12,6 @@ const navigation = [
   { href: "/work", label: "Work" },
   { href: "/services", label: "Services" },
   { href: "/approach", label: "Our approach" },
-  { href: "/approach#owner-directed", label: "Owner-directed software" },
   { href: "/about", label: "About" },
 ];
 

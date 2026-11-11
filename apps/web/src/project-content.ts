@@ -28,7 +28,10 @@ export const portfolioProjects: PortfolioProject[] = [
       "Support owner-directed website changes through tracked GitHub issues.",
     ],
     verifiedOutcome: "The owner confirms the website is actively used. No patient, treatment, or compliance outcomes are claimed.",
-    evidenceLinks: [{ label: "Public source repository", url: "https://github.com/CteNerd/r3counseling" }],
+    evidenceLinks: [
+      { label: "Business website", url: "https://r3counseling.com" },
+      { label: "Public source repository", url: "https://github.com/CteNerd/r3counseling" },
+    ],
     ownerApproval: "approved",
   },
   {
@@ -44,7 +47,10 @@ export const portfolioProjects: PortfolioProject[] = [
       "Built supporting order-management and payment code; production availability and payment outcomes are not asserted.",
     ],
     verifiedOutcome: "The owner confirms the business uses the platform. No order-volume, revenue, or cost-savings claims are made.",
-    evidenceLinks: [{ label: "Public source repository", url: "https://github.com/CteNerd/sugarsocietysc" }],
+    evidenceLinks: [
+      { label: "Business website", url: "https://sugarsocietysc.com" },
+      { label: "Public source repository", url: "https://github.com/CteNerd/sugarsocietysc" },
+    ],
     ownerApproval: "approved",
   },
   {

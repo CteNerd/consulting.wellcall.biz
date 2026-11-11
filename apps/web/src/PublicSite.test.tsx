@@ -112,8 +112,12 @@ test.each(publicRoutes)("public route %s has a coherent, connected and closed pr
           expect(document.getElementById(url.hash.slice(1)), `broken fragment ${href} on ${path}`).not.toBeNull();
         }
       } else {
-        expect(url.origin).toBe("https://github.com");
-        expect(url.pathname).toMatch(/^\/CteNerd\/(r3counseling|sugarsocietysc|the-lab|candy-map)$/);
+        if (url.origin === "https://github.com") {
+          expect(url.pathname).toMatch(/^\/CteNerd\/(r3counseling|sugarsocietysc|the-lab|candy-map)$/);
+        } else {
+          expect(["https://r3counseling.com", "https://sugarsocietysc.com"]).toContain(url.origin);
+          expect(url.pathname).toBe("/");
+        }
         expect(link.getAttribute("target")).toBe("_blank");
         expect(link.getAttribute("rel")).toBe("noopener noreferrer");
       }
@@ -197,6 +201,8 @@ test("work page separates client projects, in-progress work and founder experime
   expect(within(experiments).getByText(/residency and ownership are not verified/)).toBeDefined();
   expect(within(clientWork).getByText("In progress")).toBeDefined();
   expect(within(experiments).getByText("Experiment")).toBeDefined();
+  expect(within(clientWork).getAllByRole("link", { name: "Business website" }).map((link) => link.getAttribute("href")).sort())
+    .toEqual(["https://r3counseling.com", "https://sugarsocietysc.com"]);
   expect(screen.getAllByRole("link", { name: "Public source repository" })).toHaveLength(4);
 });
 
@@ -233,7 +239,7 @@ test("owner-directed software keeps changes reviewed, scoped and accountable", (
   window.history.replaceState(null, "", "/approach");
   render(<App />);
   expect(screen.getByRole("navigation", { name: "Main navigation" })
-    .querySelector('a[href="/approach#owner-directed"]')).not.toBeNull();
+    .querySelector('a[href="/approach#owner-directed"]')).toBeNull();
   expect(screen.getAllByText("Owner-directed software").length).toBeGreaterThan(0);
   expect(screen.getByRole("heading", { name: "Describe the outcome. Engineering makes the change safe to own." })).toBeDefined();
   expect(screen.getByText(/Integrations need a process map, approved data and access/)).toBeDefined();
